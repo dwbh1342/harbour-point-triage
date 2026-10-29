@@ -4,6 +4,8 @@ Decision support for repairs coordinators. It suggests a trade, a priority band 
 
 Prototype: https://claude.ai/artifact/TnCeJjgw3nbUm6jvu6SfUK (private until shared)
 
+Handover pack: https://claude.ai/artifact/PZ988iZuvsAh3GcU29g8nH (private until shared)
+
 ## Run
 
 Needs Node 18 or later. There are no dependencies.
@@ -26,5 +28,5 @@ Then open `dist/harbour-point-triage.html`.
 | `eval/evaluate.js` | Evaluation plan: safety, quality, groundedness, consistency, robustness, value |
 | `eval/RESULTS.md` | Latest results (generated) |
 | `app/index.html` | Console template; `build.js` inlines everything into `dist/` |
-| `docs/HANDOVER.md` | Handover pack, six sections of 300 words or fewer (`node tools_wordcount.js docs/HANDOVER.md`) |
+| `docs/HANDOVER.md` | Source text of the handover pack doc, six sections of 300 words or fewer (`node tools_wordcount.js docs/HANDOVER.md`) |
 | `docs/RUNBOOK.md`, `docs/CONTROLS.md`, `docs/BACKLOG.md` | Appendices A, B and D |

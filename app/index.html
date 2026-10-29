@@ -143,38 +143,14 @@ td.num { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 6
 .eval-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
 .eval-grid .card b { font-family: var(--f-display); font-size: 30px; display: block; line-height: 1.1; }
 h2.sec { font-size: 21px; margin: 22px 0 6px; }
-
-/* Docs */
-.docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
-.docnav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 60px); display: grid; gap: 2px; }
-.docnav button { text-align: left; border: 0; background: none; padding: 7px 10px; border-left: 3px solid transparent; cursor: pointer; color: var(--muted); font-weight: 600; }
-.docnav button[aria-current="true"] { border-left-color: var(--accent); color: var(--ink); background: var(--surface); }
-.doc { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 8px 28px 28px; min-width: 0; }
-.doc p, .doc li { max-width: 72ch; }
-.doc h2 { font-size: 28px; margin: 22px 0 6px; }
-.doc h3 { font-size: 21px; margin: 30px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); }
-.doc h4 { font-size: 17px; margin: 18px 0 6px; }
-.doc code { font-family: var(--f-mono); font-size: 13px; background: var(--sunk); padding: 1px 4px; border-radius: 3px; }
-.doc pre.code { background: var(--sunk); border: 1px solid var(--line); padding: 10px; border-radius: 4px; overflow-x: auto; }
-.doc pre.code code { background: none; padding: 0; }
-.doc .callout { border-left: 4px solid var(--clar); background: var(--clar-bg); padding: 8px 12px; }
-.doc a { color: var(--accent); overflow-wrap: anywhere; }
-.arch { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-items: center; margin: 12px 0; font-size: 13px; }
-.arch .box { border: 1px solid var(--line); background: var(--sunk); border-radius: 4px; padding: 8px; text-align: center; font-weight: 600; }
-.arch .box.h { border-color: var(--accent); }
-.arch .box.ro { border-style: dashed; }
-.arch .ar { text-align: center; color: var(--muted); }
+.doclink { color: var(--band-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
 @media (max-width: 900px) {
-  .split, .try-grid, .docs { grid-template-columns: minmax(0, 1fr); }
+  .split, .try-grid { grid-template-columns: minmax(0, 1fr); }
   .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .reads { grid-column: 1 / -1; }
   .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .eval-grid { grid-template-columns: minmax(0, 1fr); }
-  .docnav { position: static; grid-auto-flow: column; overflow-x: auto; }
-  .doc { padding: 4px 16px 20px; }
-  .arch { grid-template-columns: minmax(0, 1fr); }
-  .arch .ar { transform: rotate(90deg); }
 }
 @media (max-width: 480px) { .form { grid-template-columns: minmax(0, 1fr); } .brand h1 { font-size: 22px; } }
 @media (prefers-reduced-motion: no-preference) { .item, .tab, .btn { transition: background-color .15s, color .15s; } }
@@ -183,7 +159,7 @@ h2.sec { font-size: 21px; margin: 22px 0 6px; }
 <header class="top">
   <div class="wrap">
     <div class="brand"><small>Harbour Point Housing Association</small><h1>Repairs triage</h1></div>
-    <div class="meta"><span class="synth">Synthetic data only</span><span class="mono" id="versions"></span></div>
+    <div class="meta"><span class="synth">Synthetic data only</span><span class="mono" id="versions"></span><a class="doclink" href="https://claude.ai/artifact/PZ988iZuvsAh3GcU29g8nH" target="_blank" rel="noopener">Handover pack ↗</a></div>
   </div>
 </header>
 <nav class="tabs" aria-label="Views">
@@ -192,7 +168,6 @@ h2.sec { font-size: 21px; margin: 22px 0 6px; }
     <button class="tab" role="tab" data-view="try" id="tab-try">Try a report</button>
     <button class="tab" role="tab" data-view="eval" id="tab-eval">Evaluation</button>
     <button class="tab" role="tab" data-view="audit" id="tab-audit">Audit log <span id="audit-count" class="muted"></span></button>
-    <button class="tab" role="tab" data-view="handover" id="tab-handover">Handover pack</button>
   </div>
 </nav>
 
@@ -233,10 +208,6 @@ h2.sec { font-size: 21px; margin: 22px 0 6px; }
     <h2 class="sec" style="margin-top:0">Audit log</h2>
     <p class="note" style="max-width:80ch">Every accepted or changed decision is recorded with redacted text, versions, cited clauses, reasons and a fingerprint. <b>Replay</b> re-runs the engine on the stored record and checks that it reproduces the same decision. This is how a classification is explained after the fact. In this demo the log lives only in this browser tab.</p>
     <div id="audit"></div>
-  </section>
-
-  <section class="view" id="v-handover" hidden>
-    <div class="docs"><nav class="docnav" id="docnav" aria-label="Handover documents"></nav><article class="doc" id="doc"></article></div>
   </section>
 </main>
 
@@ -480,20 +451,8 @@ h2.sec { font-size: 21px; margin: 22px 0 6px; }
     }));
   }
 
-  // ---------- Handover ----------
-  const ARCH = `<div class="box">Portal and phone reports</div><div class="ar">→</div><div class="box h">Redaction</div><div class="ar">→</div><div class="box">Policy rules + spell-correct<br><span class="sub">Trade and priority models</span></div>
-    <div class="box h">Ordered safety router</div><div class="ar">→</div><div class="box h">Coordinator console<br><span class="sub">decides every report</span></div><div class="ar">→</div><div class="box">Audit store<br><span class="sub">redacted text, versions, fingerprint</span></div>
-    <div class="box ro">Booking API (read-only)</div><div class="ar">→</div><div class="box">Slot suggestion in console</div><div class="ar">→</div><div class="box">Coordinator books in booking system</div>`;
-  let docId = 'handover';
-  function renderDocs() {
-    $('#docnav').innerHTML = D.docs.map((d) => `<button data-doc="${d.id}" aria-current="${d.id === docId}">${esc(d.label)}</button>`).join('');
-    $('#docnav').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { docId = b.dataset.doc; renderDocs(); }));
-    $('#doc').innerHTML = D.docs.find((d) => d.id === docId).html;
-    $('#doc').querySelectorAll('[data-arch]').forEach((el) => { el.innerHTML = ARCH; });
-  }
-
   // ---------- Views ----------
-  const VIEWS = ['queue', 'try', 'eval', 'audit', 'handover'];
+  const VIEWS = ['queue', 'try', 'eval', 'audit'];
   function show(v) {
     if (!VIEWS.includes(v)) v = 'queue';
     VIEWS.forEach((x) => { $('#v-' + x).hidden = x !== v; $('#tab-' + x).setAttribute('aria-selected', x === v); });
@@ -501,7 +460,7 @@ h2.sec { font-size: 21px; margin: 22px 0 6px; }
   }
   document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => show(t.dataset.view)));
 
-  renderSummary(); renderList(); renderDetail(); runTry(); renderEval(); renderAudit(); renderDocs();
+  renderSummary(); renderList(); renderDetail(); runTry(); renderEval(); renderAudit();
   show((location.hash || '').slice(1));
 })();
 </script>

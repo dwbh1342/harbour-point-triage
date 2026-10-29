@@ -2,6 +2,8 @@
 
 MVP v0.4 · engine-0.4.0 · policy-synth-2026.10 · model nb-c89dda58 · 29 October 2026 · **All data synthetic**
 
+> The published handover pack is the doc at https://claude.ai/artifact/PZ988iZuvsAh3GcU29g8nH (private until shared). This file is its source text; Appendices A–D are in `docs/` and `eval/RESULTS.md`.
+
 ## 1. Discovery and MVP scope
 
 **Problem.** Six coordinators read every repair report (about 33,000 a year, modelled at 3 per home) to choose a trade and one of four priority bands. Emergencies carry a statutory response time, so a wrong band harms tenants and creates regulatory exposure.
@@ -67,7 +69,7 @@ Once a safety screen fires, nothing can move the report out of a human queue. A 
 
 ## 4. Handover pack
 
-**Prototype:** https://claude.ai/artifact/TnCeJjgw3nbUm6jvu6SfUK (private until shared from its Share menu). One self-contained page: triage queue, live "try a report", evaluation, audit log with replay, and this pack. Source: `harbour-point-triage/` (Node, no dependencies). Rebuild with `node build.js`.
+**Prototype:** https://claude.ai/artifact/TnCeJjgw3nbUm6jvu6SfUK (private until shared from its Share menu). One self-contained page: triage queue, live "try a report", evaluation, and an audit log with replay. Source: https://github.com/dwbh1342/harbour-point-triage (Node, no dependencies). Rebuild with `node build.js`.
 
 **Architecture (target).**
 
@@ -98,7 +100,7 @@ Everything runs inside the client tenancy. No external model or API calls.
 
 **Story: Monday 8:05, 24 reports overnight.** Today a coordinator reads them in arrival order, so a gas smell reported at 06:25 is 22nd in line.
 
-1. **Open the queue.** The console has already sorted it. *Emergency check now* sits at the top with its reasons: "Matches emergency clause E1", with the words "smell of gas" quoted from the report. The coordinator calls the tenant first. Accept stays disabled until they confirm the hazard check.
+1. **Open the queue.** The console has already sorted it. *Emergency check now* sits at the top with its reasons: "Matches emergency clause E1", with the words "gas smell" quoted from the report. The coordinator calls the tenant first. Accept stays disabled until they confirm the hazard check.
 2. **Vague report.** "Leak" lands in *Needs clarifying* with a 1-hour callback and three scripted questions (ceiling? near electrics? stopcock?). It is never guessed.
 3. **Ready to confirm.** "Hallway tap is dripping constantly": Plumbing, Routine (clause R1), 20 working days, earliest plumbing slot shown. One click accepts it. The coordinator books it in the booking system as usual.
 4. **Override.** The coordinator changes a suggestion, and the console requires a reason. That reason becomes monitoring data.
