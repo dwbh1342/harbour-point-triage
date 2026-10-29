@@ -1,0 +1,507 @@
+<title>Harbour Point Repairs Triage</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an operations console. Header band, tab strip, then a queue list beside a decision panel; stacks on phones. */
+:root {
+  --bg: #eef2f1; --surface: #ffffff; --sunk: #f6f8f8; --ink: #13201f; --muted: #566664; --line: #d5dddc;
+  --accent: #0d5961; --accent-ink: #ffffff; --band: #10393d; --band-ink: #e6f1f0; --band-muted: #9fc0bd;
+  --em: #b42318; --em-bg: #fdecea; --clar: #9a5800; --clar-bg: #fff3dc; --rev: #3346a0; --rev-bg: #eaedfc; --ok: #1b7444; --ok-bg: #e3f3ea;
+  --mark: #fff0a8;
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0c1514; --surface: #142120; --sunk: #101b1a; --ink: #e2ebea; --muted: #93a6a4; --line: #283a38;
+  --accent: #5db7bf; --accent-ink: #062022; --band: #0a2a2d; --band-ink: #dcecea; --band-muted: #86aaa7;
+  --em: #ff8b7b; --em-bg: #3a1613; --clar: #f3b45a; --clar-bg: #33230b; --rev: #a5b4ff; --rev-bg: #1b2142; --ok: #73d39e; --ok-bg: #11301f;
+  --mark: #5a4a00; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0c1514; --surface: #142120; --sunk: #101b1a; --ink: #e2ebea; --muted: #93a6a4; --line: #283a38;
+  --accent: #5db7bf; --accent-ink: #062022; --band: #0a2a2d; --band-ink: #dcecea; --band-muted: #86aaa7;
+  --em: #ff8b7b; --em-bg: #3a1613; --clar: #f3b45a; --clar-bg: #33230b; --rev: #a5b4ff; --rev-bg: #1b2142; --ok: #73d39e; --ok-bg: #11301f;
+  --mark: #5a4a00; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--band); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3, h4 { font-family: var(--f-display); font-stretch: 87%; line-height: 1.15; text-wrap: balance; margin: 0; }
+button, select, textarea, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-size: 12.5px; }
+.muted { color: var(--muted); }
+
+/* Header band */
+.top { background: var(--band); color: var(--band-ink); }
+.top .wrap { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; padding-block: 18px 14px; }
+.brand small { display: block; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--band-muted); margin-bottom: 2px; }
+.brand h1 { font-size: 26px; font-weight: 750; letter-spacing: -.01em; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12.5px; color: var(--band-muted); }
+.synth { background: var(--clar); color: #1d1300; font-weight: 700; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 3px; }
+
+/* Tabs */
+.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.tabs .wrap { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.tab { border: 0; background: none; padding: 12px 14px 10px; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+main { padding-block: 20px 48px; }
+.view[hidden] { display: none !important; }
+
+/* Lane chips and pills */
+.lane-EMERGENCY { --c: var(--em); --cb: var(--em-bg); }
+.lane-CLARIFY { --c: var(--clar); --cb: var(--clar-bg); }
+.lane-REVIEW { --c: var(--rev); --cb: var(--rev-bg); }
+.lane-CONFIRM { --c: var(--ok); --cb: var(--ok-bg); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; color: var(--c); background: var(--cb); white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.band { font-family: var(--f-mono); font-weight: 500; font-size: 12px; padding: 1px 6px; border: 1px solid currentColor; border-radius: 3px; }
+.band.P1 { color: var(--em); } .band.P2 { color: var(--clar); } .band.P3 { color: var(--muted); } .band.P4 { color: var(--muted); }
+
+/* Queue summary */
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 10px; margin-bottom: 14px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--c); padding: 10px 12px; border-radius: 4px; }
+.stat b { display: block; font-family: var(--f-display); font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12.5px; color: var(--muted); }
+.reads { background: var(--band); color: var(--band-ink); border-radius: 4px; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center; }
+.reads b { font-family: var(--f-display); font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
+.reads span { font-size: 12.5px; color: var(--band-muted); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; padding: 6px 12px; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+.split { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.list { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.group-h { font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; padding: 8px 12px; background: var(--cb, var(--sunk)); color: var(--c, var(--muted)); border-top: 1px solid var(--line); }
+.group-h:first-child { border-top: 0; }
+.item { display: grid; grid-template-columns: 4px minmax(0, 1fr); width: 100%; text-align: left; border: 0; border-top: 1px solid var(--line); background: none; padding: 0; cursor: pointer; }
+.item:hover { background: var(--sunk); }
+.item[aria-current="true"] { background: var(--sunk); box-shadow: inset 0 0 0 2px var(--accent); }
+.item .stripe { background: var(--c); }
+.item .body { padding: 9px 12px; min-width: 0; }
+.item .row1 { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.item .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.item.done .txt { text-decoration: line-through; color: var(--muted); }
+.item .done-tag { color: var(--ok); font-weight: 700; }
+
+/* Decision panel */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; min-width: 0; }
+.panel > section { padding: 14px 18px; border-top: 1px solid var(--line); }
+.panel > section:first-child { border-top: 0; }
+.p-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; }
+.report { font-size: 17px; line-height: 1.5; margin: 10px 0 4px; max-width: 70ch; overflow-wrap: anywhere; }
+mark { background: var(--mark); color: inherit; padding: 0 2px; border-radius: 2px; }
+.banner { border-left: 4px solid var(--c); background: var(--cb); padding: 10px 14px; }
+.banner h3 { font-size: 17px; color: var(--c); margin-bottom: 4px; }
+.banner ul { margin: 4px 0 0; padding-left: 18px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.k { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+.v { font-size: 16px; font-weight: 700; }
+.sub { font-size: 13px; color: var(--muted); }
+.conf { height: 6px; background: var(--sunk); border: 1px solid var(--line); border-radius: 3px; margin: 6px 0 4px; overflow: hidden; }
+.conf i { display: block; height: 100%; background: var(--accent); }
+.clause { border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; margin-top: 8px; background: var(--sunk); }
+.clause h4 { font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.clause p { margin: 4px 0; font-size: 14px; }
+.q { margin: 6px 0 0; padding-left: 20px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.check { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border: 1px dashed var(--em); border-radius: 4px; width: 100%; color: var(--ink); }
+.form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
+.form label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.form select, .form textarea, textarea#try-text { border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; background: var(--surface); width: 100%; }
+.form .full { grid-column: 1 / -1; }
+.note { font-size: 13px; color: var(--muted); }
+.ok-msg { color: var(--ok); font-weight: 700; }
+.err-msg { color: var(--em); font-weight: 700; }
+details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+pre.json { background: var(--sunk); border: 1px solid var(--line); padding: 10px; border-radius: 4px; overflow: auto; max-height: 340px; font: 12px/1.45 var(--f-mono); }
+
+/* Try */
+.try-grid { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { border: 1px solid var(--line); background: var(--sunk); border-radius: 999px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; text-align: left; }
+
+/* Evaluation */
+.caveat { border-left: 4px solid var(--clar); background: var(--clar-bg); padding: 10px 14px; margin-bottom: 16px; max-width: 90ch; }
+.lanebar { display: flex; height: 30px; border-radius: 4px; overflow: hidden; margin: 8px 0 6px; border: 1px solid var(--line); }
+.lanebar div { background: var(--c); color: var(--surface); font-size: 12px; font-weight: 700; display: flex; align-items: center; padding-left: 8px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--sunk); }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+.st { font-size: 11.5px; font-weight: 800; letter-spacing: .06em; padding: 2px 7px; border-radius: 3px; }
+.st.PASS { color: var(--ok); background: var(--ok-bg); } .st.FAIL { color: var(--em); background: var(--em-bg); } .st.info { color: var(--muted); background: var(--sunk); }
+.eval-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+.eval-grid .card b { font-family: var(--f-display); font-size: 30px; display: block; line-height: 1.1; }
+h2.sec { font-size: 21px; margin: 22px 0 6px; }
+
+/* Docs */
+.docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
+.docnav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 60px); display: grid; gap: 2px; }
+.docnav button { text-align: left; border: 0; background: none; padding: 7px 10px; border-left: 3px solid transparent; cursor: pointer; color: var(--muted); font-weight: 600; }
+.docnav button[aria-current="true"] { border-left-color: var(--accent); color: var(--ink); background: var(--surface); }
+.doc { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 8px 28px 28px; min-width: 0; }
+.doc p, .doc li { max-width: 72ch; }
+.doc h2 { font-size: 28px; margin: 22px 0 6px; }
+.doc h3 { font-size: 21px; margin: 30px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.doc h4 { font-size: 17px; margin: 18px 0 6px; }
+.doc code { font-family: var(--f-mono); font-size: 13px; background: var(--sunk); padding: 1px 4px; border-radius: 3px; }
+.doc pre.code { background: var(--sunk); border: 1px solid var(--line); padding: 10px; border-radius: 4px; overflow-x: auto; }
+.doc pre.code code { background: none; padding: 0; }
+.doc .callout { border-left: 4px solid var(--clar); background: var(--clar-bg); padding: 8px 12px; }
+.doc a { color: var(--accent); overflow-wrap: anywhere; }
+.arch { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-items: center; margin: 12px 0; font-size: 13px; }
+.arch .box { border: 1px solid var(--line); background: var(--sunk); border-radius: 4px; padding: 8px; text-align: center; font-weight: 600; }
+.arch .box.h { border-color: var(--accent); }
+.arch .box.ro { border-style: dashed; }
+.arch .ar { text-align: center; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .split, .try-grid, .docs { grid-template-columns: minmax(0, 1fr); }
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reads { grid-column: 1 / -1; }
+  .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .eval-grid { grid-template-columns: minmax(0, 1fr); }
+  .docnav { position: static; grid-auto-flow: column; overflow-x: auto; }
+  .doc { padding: 4px 16px 20px; }
+  .arch { grid-template-columns: minmax(0, 1fr); }
+  .arch .ar { transform: rotate(90deg); }
+}
+@media (max-width: 480px) { .form { grid-template-columns: minmax(0, 1fr); } .brand h1 { font-size: 22px; } }
+@media (prefers-reduced-motion: no-preference) { .item, .tab, .btn { transition: background-color .15s, color .15s; } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><small>Harbour Point Housing Association</small><h1>Repairs triage</h1></div>
+    <div class="meta"><span class="synth">Synthetic data only</span><span class="mono" id="versions"></span></div>
+  </div>
+</header>
+<nav class="tabs" aria-label="Views">
+  <div class="wrap" role="tablist">
+    <button class="tab" role="tab" data-view="queue" id="tab-queue">Triage queue</button>
+    <button class="tab" role="tab" data-view="try" id="tab-try">Try a report</button>
+    <button class="tab" role="tab" data-view="eval" id="tab-eval">Evaluation</button>
+    <button class="tab" role="tab" data-view="audit" id="tab-audit">Audit log <span id="audit-count" class="muted"></span></button>
+    <button class="tab" role="tab" data-view="handover" id="tab-handover">Handover pack</button>
+  </div>
+</nav>
+
+<main class="wrap">
+  <section class="view" id="v-queue">
+    <div class="summary" id="summary"></div>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Queue order">
+        <button id="ord-arrival" aria-pressed="false">Arrival order (today)</button>
+        <button id="ord-triage" aria-pressed="true">Triage order (with the tool)</button>
+      </div>
+      <span class="note">Monday 26 October 2026, 08:05 · 24 reports since 18:10 Sunday</span>
+    </div>
+    <div class="split"><div class="list" id="list"></div><div class="panel" id="detail"></div></div>
+  </section>
+
+  <section class="view" id="v-try" hidden>
+    <div class="try-grid">
+      <div class="card">
+        <h2 style="font-size:20px">Try a report</h2>
+        <p class="note">Type what a tenant might write. Nothing leaves this page.</p>
+        <label class="k" for="try-text">Report text</label>
+        <textarea id="try-text" rows="5">my nan is 91 and her heating has been off since friday</textarea>
+        <div class="actions" style="margin-top:8px">
+          <select id="try-channel" aria-label="Channel" class="btn"><option value="portal">Tenant portal</option><option value="phone">Phone</option></select>
+          <button class="btn primary" id="try-run">Triage</button>
+        </div>
+        <div class="k" style="margin-top:14px">Examples</div>
+        <div class="chips" id="try-examples"></div>
+      </div>
+      <div class="panel" id="try-detail"></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-eval" hidden></section>
+
+  <section class="view" id="v-audit" hidden>
+    <h2 class="sec" style="margin-top:0">Audit log</h2>
+    <p class="note" style="max-width:80ch">Every accepted or changed decision is recorded with redacted text, versions, cited clauses, reasons and a fingerprint. <b>Replay</b> re-runs the engine on the stored record and checks that it reproduces the same decision. This is how a classification is explained after the fact. In this demo the log lives only in this browser tab.</p>
+    <div id="audit"></div>
+  </section>
+
+  <section class="view" id="v-handover" hidden>
+    <div class="docs"><nav class="docnav" id="docnav" aria-label="Handover documents"></nav><article class="doc" id="doc"></article></div>
+  </section>
+</main>
+
+<script>
+/*__LIBS__*/
+</script>
+<script>
+/*__DATA__*/
+</script>
+<script>
+(function () {
+  'use strict';
+  const D = window.HP_DATA;
+  const engine = HPEngine.createEngine(HPPolicy, D.model);
+  const LANES = {
+    EMERGENCY: { name: 'Emergency check now', short: 'Emergency check', blurb: 'Possible emergency. Check the hazard with the tenant now.' },
+    CLARIFY: { name: 'Needs clarifying', short: 'Clarify', blurb: 'Too vague to triage. Call the tenant with the questions below.' },
+    REVIEW: { name: 'Coordinator review', short: 'Review', blurb: 'The tool is unsure or policy needs a person. Read and decide.' },
+    CONFIRM: { name: 'Ready to confirm', short: 'Confirm', blurb: 'Clear, policy-grounded and confident. Check and confirm.' },
+  };
+  const ORDER = ['EMERGENCY', 'CLARIFY', 'REVIEW', 'CONFIRM'];
+  const $ = (s, r) => (r || document).querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmtTime = (iso) => new Date(iso).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  const fmtDate = (iso) => new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+
+  $('#versions').textContent = Object.values(engine.versions).join(' · ');
+
+  // ---------- State ----------
+  const items = D.queue.map((q) => ({ report: q, out: engine.triage(q), done: null }));
+  const audit = [];
+  let order = 'triage';
+  let current = items.find((x) => /gas/.test(x.report.text)) || items[0];
+  let tryCount = 0;
+
+  // ---------- Decision panel (shared by queue and try) ----------
+  function highlight(text, out) {
+    let html = esc(text);
+    const ev = out.clauses.flatMap((c) => c.evidence).filter((e) => e.length > 2).sort((a, b) => b.length - a.length);
+    for (const e of ev) {
+      const re = new RegExp('(' + esc(e).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/'/g, "(?:'|&#39;)") + ')', 'i');
+      html = html.replace(re, '<mark>$1</mark>');
+    }
+    return html;
+  }
+
+  function panel(container, item, opts) {
+    const o = item.out, r = item.report, d = o.decision, L = LANES[d.lane];
+    const slot = HPBooking.suggestSlot(o.trade.value, o.priority.value, r.received_at || o.input.received_at, o.sla_deadline);
+    const redacted = o.input.redacted_text !== (r.text || '').replace(/\s+/g, ' ').trim();
+    const grounded = d.priority_source === 'policy_clause';
+    const prioSrc = grounded ? 'Policy clause ' + o.clauses[0].id
+      : d.priority_source === 'assume_emergency_until_clarified' ? 'Treated as emergency until clarified'
+      : d.priority_source === 'assume_emergency_until_checked' ? 'Treated as emergency until checked' + (o.priority.policy_band ? ' (policy alone: ' + o.priority.policy_band + ', clause ' + o.clauses[0].id + ')' : '')
+      : 'Not grounded in policy: model guess only';
+    const slotHtml = slot.kind === 'slot' ? esc(fmtDate(slot.slot.start)) + '<div class="sub">' + esc(slot.text) + '</div>' : '<span class="sub">' + esc(slot.text) + '</span>';
+    const pct = Math.round(o.trade.confidence * 100);
+
+    container.innerHTML = `
+      <section>
+        <div class="p-head">
+          <span class="mono muted">${esc(r.id || 'New report')} · ${r.channel === 'phone' ? 'Phone' : 'Portal'} · ${esc(fmtTime(r.received_at || o.input.received_at))}</span>
+          <span class="pill lane-${d.lane}">${L.name}</span>
+        </div>
+        <p class="report">${highlight(o.input.redacted_text, o)}</p>
+        ${redacted ? '<div class="note">Personal details were removed before triage. Only the redacted text is processed or logged.</div>' : ''}
+        ${o.input.corrections.length ? '<div class="note">Spelling repaired for the policy rules: ' + o.input.corrections.map((c) => '<span class="mono">' + esc(c.from) + ' → ' + esc(c.to) + '</span>').join(', ') + '</div>' : ''}
+      </section>
+      <section class="banner lane-${d.lane}">
+        <h3>${L.blurb}</h3>
+        <ul>${o.reasons.length ? o.reasons.map((x) => '<li>' + esc(x.detail) + ' <span class="mono muted">' + x.code + '</span></li>').join('') : '<li>Every check passed: policy clause matched, trade confidence ' + pct + '%, models agree.</li>'}</ul>
+      </section>
+      <section class="grid4">
+        <div><div class="k">Trade</div><div class="v">${esc(o.trade.value)}</div><div class="conf" title="Confidence ${pct}%"><i style="width:${pct}%"></i></div><div class="sub">${pct}% confident${o.trade.alternatives.length ? ' · next: ' + esc(o.trade.alternatives[0].label) : ''}</div></div>
+        <div><div class="k">Priority</div><div class="v"><span class="band ${o.priority.value}">${o.priority.value}</span> ${esc(o.priority.band)}</div><div class="sub">${esc(prioSrc)}</div></div>
+        <div><div class="k">Policy target</div><div class="v" style="font-size:15px">${esc(fmtDate(o.sla_deadline))}</div><div class="sub">${esc(o.priority.target)}</div></div>
+        <div><div class="k">Earliest slot (read-only)</div><div class="v" style="font-size:15px">${slotHtml}</div></div>
+      </section>
+      ${o.clauses.length ? `<section><div class="k">Policy clauses cited</div>${o.clauses.slice(0, 3).map((c) => `
+        <div class="clause"><h4><span class="band ${c.band}">${c.id}</span> ${esc(c.title)}</h4><p>${esc(c.text)}</p>
+        <p class="sub">Evidence: ${c.evidence.map((e) => '“' + esc(e) + '”').join(', ')}</p></div>`).join('')}</section>` : ''}
+      ${o.clarifying_questions.length ? `<section><div class="k">Callback script</div><ol class="q">${o.clarifying_questions.map((q) => '<li>' + esc(q) + '</li>').join('')}</ol></section>` : ''}
+      <section class="actions" id="act"></section>
+      <section><details><summary>Explanation record (what the audit log stores)</summary><pre class="json">${esc(JSON.stringify(o, null, 2))}</pre></details>
+        <div class="note" style="margin-top:6px">Priority model: ${o.priority.model_opinion.label} at ${Math.round(o.priority.model_opinion.p * 100)}%, emergency ${Math.round(o.priority.model_opinion.p_emergency * 100)}% · fingerprint <span class="mono">${o.fingerprint}</span></div></section>`;
+    actions($('#act', container), item, opts);
+  }
+
+  function actions(el, item, opts) {
+    const o = item.out;
+    if (item.done) {
+      el.innerHTML = `<span class="ok-msg">${item.done.action === 'accepted' ? 'Accepted' : 'Changed'}: ${esc(item.done.final_trade)}, ${item.done.final_priority}</span><span class="note">Logged at ${esc(fmtTime(item.done.ts))}. Book it in the booking system.</span>`;
+      return;
+    }
+    const em = o.decision.lane === 'EMERGENCY' || (o.decision.lane === 'CLARIFY' && o.decision.priority === 'P1');
+    el.innerHTML = `
+      ${em ? '<label class="check"><input type="checkbox" id="hz"> <span>I have spoken to the tenant and checked the hazard. Accept stays disabled until this is ticked.</span></label>' : ''}
+      <button class="btn primary" id="acc" ${em ? 'disabled' : ''}>Accept suggestion</button>
+      <button class="btn" id="chg">Change…</button>
+      <span class="note">You decide. Nothing is booked automatically.</span>
+      <div class="form" id="chgform" hidden>
+        <label>Trade<select id="f-trade">${HPPolicy.TRADES.map((t) => '<option' + (t === o.trade.value ? ' selected' : '') + '>' + esc(t) + '</option>').join('')}</select></label>
+        <label>Priority<select id="f-prio">${Object.entries(HPPolicy.BANDS).map(([k, b]) => '<option value="' + k + '"' + (k === o.priority.value ? ' selected' : '') + '>' + k + ' ' + b.name + '</option>').join('')}</select></label>
+        <label class="full">Reason (required, used for monitoring)<textarea id="f-reason" rows="2" placeholder="For example: spoke to tenant, water is near the light fitting"></textarea></label>
+        <div class="full actions"><button class="btn primary" id="f-save">Save change</button><span id="f-msg" class="err-msg"></span></div>
+      </div>`;
+    const hz = $('#hz', el), acc = $('#acc', el);
+    if (hz) hz.addEventListener('change', () => { acc.disabled = !hz.checked; });
+    acc.addEventListener('click', () => decide(item, 'accepted', o.trade.value, o.priority.value, hz ? 'Hazard checked with tenant' : '', opts));
+    $('#chg', el).addEventListener('click', () => { $('#chgform', el).hidden = false; $('#f-reason', el).focus(); });
+    $('#f-save', el).addEventListener('click', () => {
+      const reason = $('#f-reason', el).value.trim();
+      if (reason.length < 5) { $('#f-msg', el).textContent = 'Add a reason of at least a few words. Reasons feed the weekly override review.'; return; }
+      decide(item, 'changed', $('#f-trade', el).value, $('#f-prio', el).value, reason, opts);
+    });
+  }
+
+  function decide(item, action, trade, prio, reason, opts) {
+    item.done = { action, final_trade: trade, final_priority: prio, reason, ts: new Date().toISOString() };
+    audit.unshift({ ts: item.done.ts, report_id: item.report.id || item.out.id || 'TRY', action, final_trade: trade, final_priority: prio, reason, coordinator: 'Demo coordinator', record: item.out, replay: null });
+    $('#audit-count').textContent = '(' + audit.length + ')';
+    opts.after();
+  }
+
+  // ---------- Queue ----------
+  function renderSummary() {
+    const n = (l) => items.filter((x) => x.out.decision.lane === l).length;
+    const fullReads = items.length - n('CONFIRM');
+    $('#summary').innerHTML = ORDER.map((l) => `<div class="stat lane-${l}"><b>${n(l)}</b><span>${LANES[l].name}</span></div>`).join('') +
+      `<div class="reads"><b>${fullReads} of ${items.length}</b><span>need a full read (today: ${items.length} of ${items.length})</span></div>`;
+  }
+
+  function renderList() {
+    const byTime = items.slice().sort((a, b) => a.report.received_at.localeCompare(b.report.received_at));
+    const row = (x, i) => `<button class="item lane-${x.out.decision.lane}${x.done ? ' done' : ''}" data-id="${x.report.id}" aria-current="${x === current}">
+        <span class="stripe"></span><span class="body"><span class="row1"><span>${order === 'arrival' ? '#' + (i + 1) + ' · ' : ''}${esc(fmtTime(x.report.received_at))}</span>
+        <span>${x.done ? '<span class="done-tag">Done</span>' : '<span class="band ' + x.out.priority.value + '">' + x.out.priority.value + '</span>'}</span></span>
+        <span class="txt">${esc(x.out.input.redacted_text)}</span></span></button>`;
+    let html;
+    if (order === 'arrival') {
+      html = '<div class="group-h">All reports, oldest first</div>' + byTime.map(row).join('');
+    } else {
+      html = ORDER.map((l) => {
+        const g = byTime.filter((x) => x.out.decision.lane === l);
+        return g.length ? `<div class="group-h lane-${l}">${LANES[l].name} · ${g.length}</div>` + g.map(row).join('') : '';
+      }).join('');
+    }
+    $('#list').innerHTML = html;
+    $('#list').querySelectorAll('.item').forEach((b) => b.addEventListener('click', () => {
+      current = items.find((x) => x.report.id === b.dataset.id);
+      renderList(); renderDetail();
+      if (window.matchMedia('(max-width: 900px)').matches) $('#detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+  }
+
+  function renderDetail() { panel($('#detail'), current, { after: () => { renderList(); renderDetail(); renderAudit(); } }); }
+
+  function setOrder(o) {
+    order = o;
+    $('#ord-arrival').setAttribute('aria-pressed', o === 'arrival');
+    $('#ord-triage').setAttribute('aria-pressed', o === 'triage');
+    renderList();
+  }
+  $('#ord-arrival').addEventListener('click', () => setOrder('arrival'));
+  $('#ord-triage').addEventListener('click', () => setOrder('triage'));
+
+  // ---------- Try ----------
+  const EXAMPLES = [
+    'my nan is 91 and her heating has been off since friday',
+    'leak',
+    'the tap is dripping onto the plug socket below the sink',
+    'My name is Agnieszka Nowak, flat 4 Tower Court. Kitchen tap is dripping constantly',
+    'KITCHEN TAP IS DRIPPING CONSTANTLY URGENT!!! ASAP',
+    'ottal loss of power to the house, trip switch won\'t reset',
+    'black mould in the baby\'s bedroom',
+    'still not fixed',
+    'fence panel blown down in the back garden',
+  ];
+  $('#try-examples').innerHTML = EXAMPLES.map((e) => '<button class="chip">' + esc(e) + '</button>').join('');
+  $('#try-examples').querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => { $('#try-text').value = c.textContent; runTry(); }));
+  let tryItem = null;
+  function runTry() {
+    const text = $('#try-text').value.trim();
+    if (!text) { $('#try-detail').innerHTML = '<section><p class="err-msg">Type a report first, or pick an example.</p></section>'; return; }
+    tryCount++;
+    const report = { id: 'TRY-' + String(tryCount).padStart(3, '0'), text, channel: $('#try-channel').value, received_at: new Date().toISOString() };
+    tryItem = { report, out: engine.triage(report), done: null };
+    panel($('#try-detail'), tryItem, { after: () => { panel($('#try-detail'), tryItem, { after: () => {} }); renderAudit(); } });
+  }
+  $('#try-run').addEventListener('click', runTry);
+
+  // ---------- Evaluation ----------
+  function renderEval() {
+    const R = D.results, M = R.metrics, lanes = R.lanes, total = Object.values(lanes).reduce((a, b) => a + b, 0);
+    const groups = ['Safety', 'Quality', 'Groundedness', 'Consistency', 'Robustness', 'Value'];
+    const pass = M.filter((m) => m.pass === true).length, fail = M.filter((m) => m.pass === false).length;
+    $('#v-eval').innerHTML = `
+      <div class="caveat"><b>Synthetic evaluation.</b> 500 generated reports (300 train, 200 test) plus 15 hand-written red-team emergencies. We wrote both the generator and the rules, so these results show that the safety design and the pipeline work. They do not show real-world accuracy. Gate 1 repeats every test on the real sample inside the client tenancy.</div>
+      <div class="eval-grid">
+        <div class="card"><div class="k">Targets met</div><b>${pass} of ${pass + fail}</b><span class="sub">${fail} failed: ${M.filter((m) => m.pass === false).map((m) => m.id + ' ' + esc(m.name.toLowerCase())).join('; ')}</span></div>
+        <div class="card"><div class="k">Emergencies reaching a human</div><b>${M.find((m) => m.id === 'S1').value}</b><span class="sub">Red team: ${M.find((m) => m.id === 'S3').value}</span></div>
+        <div class="card"><div class="k">Ready to confirm, unseen phrasing</div><b>${R.holdout_vs_seen.holdout.confirm} of ${R.holdout_vs_seen.holdout.n}</b><span class="sub">versus ${R.holdout_vs_seen.seen.confirm} of ${R.holdout_vs_seen.seen.n} on familiar phrasing. Safe, but value drops.</span></div>
+      </div>
+      <h2 class="sec">Where the 200 test reports went</h2>
+      <div class="lanebar" role="img" aria-label="${ORDER.map((l) => LANES[l].name + ' ' + lanes[l]).join(', ')}">${ORDER.map((l) => `<div class="lane-${l}" style="width:${(100 * lanes[l]) / total}%">${lanes[l]}</div>`).join('')}</div>
+      <div class="legend">${ORDER.map((l) => `<span class="pill lane-${l}">${LANES[l].name} ${lanes[l]} (${Math.round((100 * lanes[l]) / total)}%)</span>`).join('')}</div>
+      <h2 class="sec">Metrics against the evaluation plan</h2>
+      <div class="tablewrap"><table><thead><tr><th>ID</th><th>Metric</th><th>Result</th><th>Target</th><th>Status</th></tr></thead><tbody>
+      ${groups.map((g) => `<tr><th colspan="5">${g}</th></tr>` + M.filter((m) => m.group === g).map((m) => `<tr><td class="mono">${m.id}</td><td>${esc(m.name)}${m.note ? '<div class="sub">' + esc(m.note) + '</div>' : ''}</td><td class="num">${esc(m.value)}</td><td class="num">${esc(m.target)}</td><td><span class="st ${m.pass === null ? 'info' : m.pass ? 'PASS' : 'FAIL'}">${m.pass === null ? 'INFO' : m.pass ? 'PASS' : 'FAIL'}</span></td></tr>`).join('')).join('')}
+      </tbody></table></div>
+      <h2 class="sec">Red-team emergencies</h2>
+      <p class="note">Written to dodge keyword rules. The first run found a miss ("crack getting wider" landed in Ready to confirm). It is fixed and kept as a regression test, so this set now flatters the engine.</p>
+      <div class="tablewrap"><table><thead><tr><th>Report</th><th>Queue</th><th>Why</th></tr></thead><tbody>
+      ${R.red_team.map((x) => `<tr><td>${esc(x.text)}</td><td><span class="pill lane-${x.lane}">${LANES[x.lane].short}</span></td><td class="mono">${x.reasons.join(', ')}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="note">Coordinator labels agreed with policy on ${R.coordinator_vs_policy.agree_pct}% of test reports (illustrative: the generator injects 7% inconsistency). Value model: ${R.value_assumptions.reportsPerYear.toLocaleString('en-GB')} reports a year, ${R.value_assumptions.minutesFullRead} minutes per full read, ${R.value_assumptions.minutesConfirm} per confirm. Generated ${esc(fmtDate(R.generated_at))}.</p>`;
+  }
+
+  // ---------- Audit ----------
+  function renderAudit() {
+    if (!audit.length) {
+      $('#audit').innerHTML = '<div class="card"><p><b>No decisions yet.</b> Accept or change a suggestion in the triage queue, and the record appears here with a Replay button.</p></div>';
+      return;
+    }
+    $('#audit').innerHTML = `<div class="tablewrap"><table><thead><tr><th>Time</th><th>Report</th><th>Decision</th><th>Suggested</th><th>Reason</th><th>Fingerprint</th><th></th></tr></thead><tbody>
+      ${audit.map((a, i) => `<tr><td class="num">${esc(new Date(a.ts).toLocaleTimeString('en-GB'))}</td><td class="mono">${esc(a.report_id)}</td>
+        <td>${a.action === 'accepted' ? 'Accepted' : '<b>Changed</b>'}: ${esc(a.final_trade)}, <span class="band ${a.final_priority}">${a.final_priority}</span></td>
+        <td>${esc(a.record.trade.value)}, ${a.record.priority.value} · <span class="pill lane-${a.record.decision.lane}">${LANES[a.record.decision.lane].short}</span></td>
+        <td>${esc(a.reason || '—')}</td><td class="mono">${a.record.fingerprint}</td>
+        <td><div class="actions"><button class="btn" data-replay="${i}">Replay</button><button class="btn" data-copy="${i}">Copy record</button></div>
+        <div data-out="${i}">${a.replay ? (a.replay.match ? '<span class="ok-msg">Replay matches ' + a.replay.fingerprint + '</span>' : '<span class="err-msg">Mismatch: ' + a.replay.fingerprint + '</span>') : ''}</div></td></tr>`).join('')}
+      </tbody></table></div><pre class="json" id="copybox" hidden></pre>`;
+    $('#audit').querySelectorAll('[data-replay]').forEach((b) => b.addEventListener('click', () => {
+      const a = audit[+b.dataset.replay]; a.replay = engine.replay(a.record); renderAudit();
+    }));
+    $('#audit').querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => {
+      const a = audit[+b.dataset.copy]; const text = JSON.stringify(Object.assign({}, a, { replay: undefined }), null, 2);
+      const out = $('[data-out="' + b.dataset.copy + '"]');
+      const fallback = () => { const box = $('#copybox'); box.hidden = false; box.textContent = text; const r = document.createRange(); r.selectNodeContents(box); const s = getSelection(); s.removeAllRanges(); s.addRange(r); out.innerHTML = '<span class="note">Record shown below and selected. Press Ctrl+C to copy.</span>'; };
+      try { navigator.clipboard.writeText(text).then(() => { out.innerHTML = '<span class="ok-msg">Copied</span>'; }, fallback); } catch (e) { fallback(); }
+    }));
+  }
+
+  // ---------- Handover ----------
+  const ARCH = `<div class="box">Portal and phone reports</div><div class="ar">→</div><div class="box h">Redaction</div><div class="ar">→</div><div class="box">Policy rules + spell-correct<br><span class="sub">Trade and priority models</span></div>
+    <div class="box h">Ordered safety router</div><div class="ar">→</div><div class="box h">Coordinator console<br><span class="sub">decides every report</span></div><div class="ar">→</div><div class="box">Audit store<br><span class="sub">redacted text, versions, fingerprint</span></div>
+    <div class="box ro">Booking API (read-only)</div><div class="ar">→</div><div class="box">Slot suggestion in console</div><div class="ar">→</div><div class="box">Coordinator books in booking system</div>`;
+  let docId = 'handover';
+  function renderDocs() {
+    $('#docnav').innerHTML = D.docs.map((d) => `<button data-doc="${d.id}" aria-current="${d.id === docId}">${esc(d.label)}</button>`).join('');
+    $('#docnav').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { docId = b.dataset.doc; renderDocs(); }));
+    $('#doc').innerHTML = D.docs.find((d) => d.id === docId).html;
+    $('#doc').querySelectorAll('[data-arch]').forEach((el) => { el.innerHTML = ARCH; });
+  }
+
+  // ---------- Views ----------
+  const VIEWS = ['queue', 'try', 'eval', 'audit', 'handover'];
+  function show(v) {
+    if (!VIEWS.includes(v)) v = 'queue';
+    VIEWS.forEach((x) => { $('#v-' + x).hidden = x !== v; $('#tab-' + x).setAttribute('aria-selected', x === v); });
+    try { history.replaceState(null, '', '#' + v); } catch (e) {}
+  }
+  document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => show(t.dataset.view)));
+
+  renderSummary(); renderList(); renderDetail(); runTry(); renderEval(); renderAudit(); renderDocs();
+  show((location.hash || '').slice(1));
+})();
+</script>

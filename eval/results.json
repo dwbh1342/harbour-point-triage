@@ -1,0 +1,392 @@
+{
+ "generated_at": "2026-10-29T14:43:40.632Z",
+ "synthetic": true,
+ "versions": {
+  "engine": "engine-0.4.0",
+  "policy": "policy-synth-2026.10",
+  "model": "nb-c89dda58"
+ },
+ "config": {
+  "tradeConfidenceMin": 0.8,
+  "modelEmergencyFlag": 0.2,
+  "vagueMaxContentTokens": 3
+ },
+ "counts": {
+  "total": 500,
+  "train": 300,
+  "test": 200,
+  "vague_test": 30,
+  "p1_test": 48,
+  "holdout_test": 57
+ },
+ "lanes": {
+  "EMERGENCY": 75,
+  "CLARIFY": 15,
+  "REVIEW": 34,
+  "CONFIRM": 76
+ },
+ "metrics": [
+  {
+   "id": "S1",
+   "group": "Safety",
+   "name": "Emergencies (policy P1) reaching a human queue",
+   "value": "100% (48/48)",
+   "target": "100%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "S2",
+   "group": "Safety",
+   "name": "Emergencies flagged for immediate action (emergency queue or 1-hour callback)",
+   "value": "100%",
+   "target": "≥ 95%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "S3",
+   "group": "Safety",
+   "name": "Red-team emergencies (hand-written, unseen) reaching a human",
+   "value": "100% (15/15)",
+   "target": "100%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "S4",
+   "group": "Safety",
+   "name": "Under-prioritised in the ready-to-confirm queue",
+   "value": "0% (0/76)",
+   "target": "≤ 1%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "S5",
+   "group": "Safety",
+   "name": "Vague reports kept out of the ready-to-confirm queue",
+   "value": "100%",
+   "target": "100%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "Q1",
+   "group": "Quality",
+   "name": "Ready-to-confirm: trade correct",
+   "value": "100%",
+   "target": "≥ 95%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "Q2",
+   "group": "Quality",
+   "name": "Ready-to-confirm: priority correct",
+   "value": "100%",
+   "target": "≥ 97%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "Q3",
+   "group": "Quality",
+   "name": "All reports: trade correct (vs policy truth)",
+   "value": "81.5%",
+   "target": "report only",
+   "pass": null,
+   "note": "Includes vague reports, which no system can classify from the text"
+  },
+  {
+   "id": "Q4",
+   "group": "Quality",
+   "name": "Policy-grounded priority correct",
+   "value": "97.3% of 149",
+   "target": "≥ 95%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "Q5",
+   "group": "Quality",
+   "name": "Emergency queue precision (truly P1)",
+   "value": "56%",
+   "target": "report only",
+   "pass": null,
+   "note": "Over-escalation costs coordinator time but is the safe failure"
+  },
+  {
+   "id": "G1",
+   "group": "Groundedness",
+   "name": "Cited clauses exist in the policy",
+   "value": "100%",
+   "target": "100%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "G2",
+   "group": "Groundedness",
+   "name": "Evidence quotes found verbatim in the (redacted) report",
+   "value": "100%",
+   "target": "100%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "G3",
+   "group": "Groundedness",
+   "name": "Policy band equals the band of the highest cited clause",
+   "value": "100%",
+   "target": "100%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "G4",
+   "group": "Groundedness",
+   "name": "Ready-to-confirm items with no policy clause",
+   "value": "0",
+   "target": "0",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "C1",
+   "group": "Consistency",
+   "name": "Same input gives same fingerprint on re-run",
+   "value": "100%",
+   "target": "100%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "C2",
+   "group": "Consistency",
+   "name": "Audit replay reproduces the recorded decision",
+   "value": "100%",
+   "target": "100%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "C3",
+   "group": "Consistency",
+   "name": "Decision unchanged when name, address or contact details change",
+   "value": "100% (1400 variants)",
+   "target": "100%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "C4",
+   "group": "Consistency",
+   "name": "Decision unchanged when tenant shouts \"URGENT!!!\"",
+   "value": "100%",
+   "target": "100%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "R1",
+   "group": "Robustness",
+   "name": "Same queue and priority after a typo in the key word",
+   "value": "93.1% (144)",
+   "target": "report only",
+   "pass": null,
+   "note": "Typos degrade to human review, not to a wrong answer"
+  },
+  {
+   "id": "R2",
+   "group": "Robustness",
+   "name": "Emergencies with a typo still reaching a human",
+   "value": "100%",
+   "target": "100%",
+   "pass": true,
+   "note": ""
+  },
+  {
+   "id": "V1",
+   "group": "Value",
+   "name": "Reports ready to confirm without a full read",
+   "value": "38%",
+   "target": "≥ 40%",
+   "pass": false,
+   "note": ""
+  },
+  {
+   "id": "V2",
+   "group": "Value",
+   "name": "Coordinator hours released per year (modelled)",
+   "value": "470 h (0.28 FTE)",
+   "target": "report only",
+   "pass": null,
+   "note": "Assumes 33,000 reports a year, 3.0 min full read, 0.75 min confirm"
+  }
+ ],
+ "holdout_vs_seen": {
+  "holdout": {
+   "n": 57,
+   "confirm": 1,
+   "confirm_correct": 1
+  },
+  "seen": {
+   "n": 113,
+   "confirm": 75,
+   "confirm_correct": 75
+  }
+ },
+ "coordinator_vs_policy": {
+  "agree_pct": 97.5,
+  "p1_downgraded_by_coordinator": 1,
+  "note": "Coordinator noise is injected by the generator (7%); illustrative only"
+ },
+ "trade_agreement_with_coordinator_pct": 77.5,
+ "confirm_over_prioritised": 0,
+ "confirm_under_prioritised": [],
+ "red_team": [
+  {
+   "text": "not sure if it matters but there is a hissing noise from the gas pipe by the cooker",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "smells like rotten eggs in the kitchen",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "the kids said the socket went bang and now there is a black mark round it",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "my nan is 91 and her heating has been off since friday",
+   "lane": "REVIEW",
+   "priority": "P2",
+   "reasons": [
+    "NO_POLICY_MATCH"
+   ]
+  },
+  {
+   "text": "the tap is dripping onto the plug socket below the sink",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "the alarm thing on the ceiling by the boiler keeps beeping and we feel dizzy",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "MODEL_EMERGENCY_SIGNAL"
+   ]
+  },
+  {
+   "text": "front door got kicked in last night, cannot lock it",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "toilet is overflowing and it is our only one",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "the bathroom ceiling is bowing and dripping",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "water running down the wall behind the fuse box",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "big crack in the wall and it is getting wider every day",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "brown water coming through the light in the hallway",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "our back door won't lock since the storm",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "radiator leaking and it's near the extension lead",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "POLICY_EMERGENCY_MATCH"
+   ]
+  },
+  {
+   "text": "boiler making a loud banging noise and the pilot keeps going out, slight smell",
+   "lane": "EMERGENCY",
+   "priority": "P1",
+   "reasons": [
+    "MODEL_EMERGENCY_SIGNAL"
+   ]
+  }
+ ],
+ "red_team_misses": [],
+ "counterfactual_failures": [],
+ "value_assumptions": {
+  "reportsPerYear": 33000,
+  "minutesFullRead": 3,
+  "minutesConfirm": 0.75,
+  "hoursPerFte": 1650
+ },
+ "reason_frequency": {
+  "MODEL_EMERGENCY_SIGNAL": 32,
+  "LOW_TRADE_CONFIDENCE": 30,
+  "POLICY_EMERGENCY_MATCH": 40,
+  "POLICY_REQUIRES_REVIEW": 4,
+  "TOO_VAGUE": 15,
+  "TRADE_DISAGREEMENT": 11,
+  "PRIORITY_DISAGREEMENT": 8,
+  "POSSIBLE_HAZARD": 11,
+  "REPEAT_REPORT": 7,
+  "VULNERABILITY_MENTIONED": 1,
+  "TENANT_REPORTS_DANGER": 4,
+  "NO_POLICY_MATCH": 1
+ }
+}

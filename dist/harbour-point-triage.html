@@ -1,0 +1,1038 @@
+<title>Harbour Point Repairs Triage</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an operations console. Header band, tab strip, then a queue list beside a decision panel; stacks on phones. */
+:root {
+  --bg: #eef2f1; --surface: #ffffff; --sunk: #f6f8f8; --ink: #13201f; --muted: #566664; --line: #d5dddc;
+  --accent: #0d5961; --accent-ink: #ffffff; --band: #10393d; --band-ink: #e6f1f0; --band-muted: #9fc0bd;
+  --em: #b42318; --em-bg: #fdecea; --clar: #9a5800; --clar-bg: #fff3dc; --rev: #3346a0; --rev-bg: #eaedfc; --ok: #1b7444; --ok-bg: #e3f3ea;
+  --mark: #fff0a8;
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0c1514; --surface: #142120; --sunk: #101b1a; --ink: #e2ebea; --muted: #93a6a4; --line: #283a38;
+  --accent: #5db7bf; --accent-ink: #062022; --band: #0a2a2d; --band-ink: #dcecea; --band-muted: #86aaa7;
+  --em: #ff8b7b; --em-bg: #3a1613; --clar: #f3b45a; --clar-bg: #33230b; --rev: #a5b4ff; --rev-bg: #1b2142; --ok: #73d39e; --ok-bg: #11301f;
+  --mark: #5a4a00; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0c1514; --surface: #142120; --sunk: #101b1a; --ink: #e2ebea; --muted: #93a6a4; --line: #283a38;
+  --accent: #5db7bf; --accent-ink: #062022; --band: #0a2a2d; --band-ink: #dcecea; --band-muted: #86aaa7;
+  --em: #ff8b7b; --em-bg: #3a1613; --clar: #f3b45a; --clar-bg: #33230b; --rev: #a5b4ff; --rev-bg: #1b2142; --ok: #73d39e; --ok-bg: #11301f;
+  --mark: #5a4a00; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--band); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3, h4 { font-family: var(--f-display); font-stretch: 87%; line-height: 1.15; text-wrap: balance; margin: 0; }
+button, select, textarea, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-size: 12.5px; }
+.muted { color: var(--muted); }
+
+/* Header band */
+.top { background: var(--band); color: var(--band-ink); }
+.top .wrap { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; padding-block: 18px 14px; }
+.brand small { display: block; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--band-muted); margin-bottom: 2px; }
+.brand h1 { font-size: 26px; font-weight: 750; letter-spacing: -.01em; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12.5px; color: var(--band-muted); }
+.synth { background: var(--clar); color: #1d1300; font-weight: 700; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 3px; }
+
+/* Tabs */
+.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.tabs .wrap { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.tab { border: 0; background: none; padding: 12px 14px 10px; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+main { padding-block: 20px 48px; }
+.view[hidden] { display: none !important; }
+
+/* Lane chips and pills */
+.lane-EMERGENCY { --c: var(--em); --cb: var(--em-bg); }
+.lane-CLARIFY { --c: var(--clar); --cb: var(--clar-bg); }
+.lane-REVIEW { --c: var(--rev); --cb: var(--rev-bg); }
+.lane-CONFIRM { --c: var(--ok); --cb: var(--ok-bg); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; color: var(--c); background: var(--cb); white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.band { font-family: var(--f-mono); font-weight: 500; font-size: 12px; padding: 1px 6px; border: 1px solid currentColor; border-radius: 3px; }
+.band.P1 { color: var(--em); } .band.P2 { color: var(--clar); } .band.P3 { color: var(--muted); } .band.P4 { color: var(--muted); }
+
+/* Queue summary */
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 10px; margin-bottom: 14px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--c); padding: 10px 12px; border-radius: 4px; }
+.stat b { display: block; font-family: var(--f-display); font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12.5px; color: var(--muted); }
+.reads { background: var(--band); color: var(--band-ink); border-radius: 4px; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center; }
+.reads b { font-family: var(--f-display); font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
+.reads span { font-size: 12.5px; color: var(--band-muted); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; padding: 6px 12px; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+.split { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.list { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.group-h { font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; padding: 8px 12px; background: var(--cb, var(--sunk)); color: var(--c, var(--muted)); border-top: 1px solid var(--line); }
+.group-h:first-child { border-top: 0; }
+.item { display: grid; grid-template-columns: 4px minmax(0, 1fr); width: 100%; text-align: left; border: 0; border-top: 1px solid var(--line); background: none; padding: 0; cursor: pointer; }
+.item:hover { background: var(--sunk); }
+.item[aria-current="true"] { background: var(--sunk); box-shadow: inset 0 0 0 2px var(--accent); }
+.item .stripe { background: var(--c); }
+.item .body { padding: 9px 12px; min-width: 0; }
+.item .row1 { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.item .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.item.done .txt { text-decoration: line-through; color: var(--muted); }
+.item .done-tag { color: var(--ok); font-weight: 700; }
+
+/* Decision panel */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; min-width: 0; }
+.panel > section { padding: 14px 18px; border-top: 1px solid var(--line); }
+.panel > section:first-child { border-top: 0; }
+.p-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; }
+.report { font-size: 17px; line-height: 1.5; margin: 10px 0 4px; max-width: 70ch; overflow-wrap: anywhere; }
+mark { background: var(--mark); color: inherit; padding: 0 2px; border-radius: 2px; }
+.banner { border-left: 4px solid var(--c); background: var(--cb); padding: 10px 14px; }
+.banner h3 { font-size: 17px; color: var(--c); margin-bottom: 4px; }
+.banner ul { margin: 4px 0 0; padding-left: 18px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.k { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+.v { font-size: 16px; font-weight: 700; }
+.sub { font-size: 13px; color: var(--muted); }
+.conf { height: 6px; background: var(--sunk); border: 1px solid var(--line); border-radius: 3px; margin: 6px 0 4px; overflow: hidden; }
+.conf i { display: block; height: 100%; background: var(--accent); }
+.clause { border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; margin-top: 8px; background: var(--sunk); }
+.clause h4 { font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.clause p { margin: 4px 0; font-size: 14px; }
+.q { margin: 6px 0 0; padding-left: 20px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.check { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border: 1px dashed var(--em); border-radius: 4px; width: 100%; color: var(--ink); }
+.form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
+.form label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.form select, .form textarea, textarea#try-text { border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; background: var(--surface); width: 100%; }
+.form .full { grid-column: 1 / -1; }
+.note { font-size: 13px; color: var(--muted); }
+.ok-msg { color: var(--ok); font-weight: 700; }
+.err-msg { color: var(--em); font-weight: 700; }
+details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+pre.json { background: var(--sunk); border: 1px solid var(--line); padding: 10px; border-radius: 4px; overflow: auto; max-height: 340px; font: 12px/1.45 var(--f-mono); }
+
+/* Try */
+.try-grid { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { border: 1px solid var(--line); background: var(--sunk); border-radius: 999px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; text-align: left; }
+
+/* Evaluation */
+.caveat { border-left: 4px solid var(--clar); background: var(--clar-bg); padding: 10px 14px; margin-bottom: 16px; max-width: 90ch; }
+.lanebar { display: flex; height: 30px; border-radius: 4px; overflow: hidden; margin: 8px 0 6px; border: 1px solid var(--line); }
+.lanebar div { background: var(--c); color: var(--surface); font-size: 12px; font-weight: 700; display: flex; align-items: center; padding-left: 8px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--sunk); }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+.st { font-size: 11.5px; font-weight: 800; letter-spacing: .06em; padding: 2px 7px; border-radius: 3px; }
+.st.PASS { color: var(--ok); background: var(--ok-bg); } .st.FAIL { color: var(--em); background: var(--em-bg); } .st.info { color: var(--muted); background: var(--sunk); }
+.eval-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+.eval-grid .card b { font-family: var(--f-display); font-size: 30px; display: block; line-height: 1.1; }
+h2.sec { font-size: 21px; margin: 22px 0 6px; }
+
+/* Docs */
+.docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
+.docnav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 60px); display: grid; gap: 2px; }
+.docnav button { text-align: left; border: 0; background: none; padding: 7px 10px; border-left: 3px solid transparent; cursor: pointer; color: var(--muted); font-weight: 600; }
+.docnav button[aria-current="true"] { border-left-color: var(--accent); color: var(--ink); background: var(--surface); }
+.doc { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 8px 28px 28px; min-width: 0; }
+.doc p, .doc li { max-width: 72ch; }
+.doc h2 { font-size: 28px; margin: 22px 0 6px; }
+.doc h3 { font-size: 21px; margin: 30px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.doc h4 { font-size: 17px; margin: 18px 0 6px; }
+.doc code { font-family: var(--f-mono); font-size: 13px; background: var(--sunk); padding: 1px 4px; border-radius: 3px; }
+.doc pre.code { background: var(--sunk); border: 1px solid var(--line); padding: 10px; border-radius: 4px; overflow-x: auto; }
+.doc pre.code code { background: none; padding: 0; }
+.doc .callout { border-left: 4px solid var(--clar); background: var(--clar-bg); padding: 8px 12px; }
+.doc a { color: var(--accent); overflow-wrap: anywhere; }
+.arch { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-items: center; margin: 12px 0; font-size: 13px; }
+.arch .box { border: 1px solid var(--line); background: var(--sunk); border-radius: 4px; padding: 8px; text-align: center; font-weight: 600; }
+.arch .box.h { border-color: var(--accent); }
+.arch .box.ro { border-style: dashed; }
+.arch .ar { text-align: center; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .split, .try-grid, .docs { grid-template-columns: minmax(0, 1fr); }
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reads { grid-column: 1 / -1; }
+  .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .eval-grid { grid-template-columns: minmax(0, 1fr); }
+  .docnav { position: static; grid-auto-flow: column; overflow-x: auto; }
+  .doc { padding: 4px 16px 20px; }
+  .arch { grid-template-columns: minmax(0, 1fr); }
+  .arch .ar { transform: rotate(90deg); }
+}
+@media (max-width: 480px) { .form { grid-template-columns: minmax(0, 1fr); } .brand h1 { font-size: 22px; } }
+@media (prefers-reduced-motion: no-preference) { .item, .tab, .btn { transition: background-color .15s, color .15s; } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><small>Harbour Point Housing Association</small><h1>Repairs triage</h1></div>
+    <div class="meta"><span class="synth">Synthetic data only</span><span class="mono" id="versions"></span></div>
+  </div>
+</header>
+<nav class="tabs" aria-label="Views">
+  <div class="wrap" role="tablist">
+    <button class="tab" role="tab" data-view="queue" id="tab-queue">Triage queue</button>
+    <button class="tab" role="tab" data-view="try" id="tab-try">Try a report</button>
+    <button class="tab" role="tab" data-view="eval" id="tab-eval">Evaluation</button>
+    <button class="tab" role="tab" data-view="audit" id="tab-audit">Audit log <span id="audit-count" class="muted"></span></button>
+    <button class="tab" role="tab" data-view="handover" id="tab-handover">Handover pack</button>
+  </div>
+</nav>
+
+<main class="wrap">
+  <section class="view" id="v-queue">
+    <div class="summary" id="summary"></div>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Queue order">
+        <button id="ord-arrival" aria-pressed="false">Arrival order (today)</button>
+        <button id="ord-triage" aria-pressed="true">Triage order (with the tool)</button>
+      </div>
+      <span class="note">Monday 26 October 2026, 08:05 · 24 reports since 18:10 Sunday</span>
+    </div>
+    <div class="split"><div class="list" id="list"></div><div class="panel" id="detail"></div></div>
+  </section>
+
+  <section class="view" id="v-try" hidden>
+    <div class="try-grid">
+      <div class="card">
+        <h2 style="font-size:20px">Try a report</h2>
+        <p class="note">Type what a tenant might write. Nothing leaves this page.</p>
+        <label class="k" for="try-text">Report text</label>
+        <textarea id="try-text" rows="5">my nan is 91 and her heating has been off since friday</textarea>
+        <div class="actions" style="margin-top:8px">
+          <select id="try-channel" aria-label="Channel" class="btn"><option value="portal">Tenant portal</option><option value="phone">Phone</option></select>
+          <button class="btn primary" id="try-run">Triage</button>
+        </div>
+        <div class="k" style="margin-top:14px">Examples</div>
+        <div class="chips" id="try-examples"></div>
+      </div>
+      <div class="panel" id="try-detail"></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-eval" hidden></section>
+
+  <section class="view" id="v-audit" hidden>
+    <h2 class="sec" style="margin-top:0">Audit log</h2>
+    <p class="note" style="max-width:80ch">Every accepted or changed decision is recorded with redacted text, versions, cited clauses, reasons and a fingerprint. <b>Replay</b> re-runs the engine on the stored record and checks that it reproduces the same decision. This is how a classification is explained after the fact. In this demo the log lives only in this browser tab.</p>
+    <div id="audit"></div>
+  </section>
+
+  <section class="view" id="v-handover" hidden>
+    <div class="docs"><nav class="docnav" id="docnav" aria-label="Handover documents"></nav><article class="doc" id="doc"></article></div>
+  </section>
+</main>
+
+<script>
+// Harbour Point repairs policy, as machine-readable clauses.
+// SYNTHETIC STAND-IN: written to mirror a typical UK social-landlord repairs
+// policy with four priority bands. Replace with the client's published policy
+// (clause wording, timescales and patterns) in week 1 of the build.
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.HPPolicy = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const BANDS = {
+    P1: { name: 'Emergency', target: 'Attend within 4 hours, make safe within 24 hours', attendHours: 4 },
+    P2: { name: 'Urgent', target: 'Complete within 5 working days', workingDays: 5 },
+    P3: { name: 'Routine', target: 'Complete within 20 working days', workingDays: 20 },
+    P4: { name: 'Planned', target: 'Batched into the planned programme within 90 days', calendarDays: 90 },
+  };
+
+  const TRADES = [
+    'Plumbing', 'Electrical', 'Heating & Gas', 'Drainage', 'Roofing', 'Carpentry',
+    'Glazing', 'Locks & Security', 'Damp & Mould', 'Pest Control', 'General Building',
+  ];
+
+  // Words that indicate a vulnerable household member. Mention never changes the
+  // suggestion by itself; it sends the case to a coordinator, who checks the
+  // tenancy vulnerability register (policy 4.3).
+  const VULNERABILITY = "\\b(baby|newborn|infant|toddler|elderly|pensioner|disabled|disability|wheelchair|oxygen|chemo\\w*|pregnant|heart condition|asthma|copd|dementia|vulnerable|carer|[7-9]\\d years? old|aged [7-9]\\d|frail|terminal\\w*)\\b";
+
+  // Tenant language that asserts danger. Always reaches a human (policy 2.1).
+  const DANGER_CLAIM = "\\b(emergency|dangerous|unsafe|danger|fire)\\b";
+
+  // Clause patterns run over redacted, lower-cased, spell-corrected text.
+  // Any clause in P1 sends the report to the emergency queue for a human.
+  const CLAUSES = [
+    // ---- P1 Emergency ----
+    { id: 'E1', band: 'P1', trade: 'Heating & Gas', title: 'Suspected gas escape',
+      text: 'Any smell of gas or suspected gas escape. Tenant advised to call the gas emergency line (0800 111 999) and leave the property.',
+      patterns: ["\\bgas\\b.{0,40}\\b(smell\\w*|leak\\w*|hiss\\w*|escape)", "\\b(smell\\w*|hiss\\w*|leak\\w*)\\b.{0,40}\\bgas\\b", "\\beggy smell", "rotten eggs?"] },
+    { id: 'E2', band: 'P1', trade: 'Heating & Gas', title: 'Carbon monoxide alarm activated',
+      text: 'Carbon monoxide alarm sounding or suspected CO exposure.',
+      patterns: ["carbon monoxide", "\\bco (alarm|detector)"] },
+    { id: 'E3', band: 'P1', trade: 'Plumbing', title: 'Uncontrollable water escape',
+      text: 'Water escape that cannot be contained, flooding, burst pipes or water coming through a ceiling.',
+      patterns: ["\\b(pouring|gushing|flooding|flooded|burst)\\b", "water (is )?(coming|pouring|dripping|leaking|running) (through|from|out of) (the )?\\w*\\s?ceiling", "(can't|cannot|won't) turn (off )?the water( off)?", "stopcock (won't|will not|doesn't|is stuck|won't move)", "water everywhere"] },
+    { id: 'E4', band: 'P1', trade: 'Electrical', title: 'Water in contact with electrics',
+      text: 'Water leaking into or near light fittings, sockets, switches or the consumer unit.',
+      patterns: ["\\b(water|drip\\w*|leak\\w*)\\b.{0,40}\\b(light fitting|ceiling light|light|sockets?|plugs?|fuse ?box|consumer unit|electrics|switch|extension (lead|cable)|wires?|wiring)\\b", "\\b(light fitting|ceiling light|sockets?|plug socket|fuse ?box|consumer unit|electrics)\\b.{0,30}\\b(water|wet|drip\\w*|leak\\w*)\\b"] },
+    { id: 'E5', band: 'P1', trade: 'Electrical', title: 'Dangerous electrics or total loss of power',
+      text: 'Sparking, burning smell, exposed live wiring, or total loss of electrical supply not caused by the network operator.',
+      patterns: ["\\bspark\\w*", "(exposed|bare|live) wires?", "burning smell|smell of burning|smells? like burning", "smoke (coming )?(from|out)", "\\bscorch\\w*", "(no|lost all|total loss of) (power|electric|electricity)\\b", "fuse ?box.{0,40}(hot|buzz\\w*|smoking|burning)", "went bang|\\bbang\\b.{0,30}(socket|plug)"] },
+    { id: 'E6', band: 'P1', trade: 'Locks & Security', title: 'Property cannot be secured',
+      text: 'External door or accessible window that cannot be locked or secured, including after a break-in.',
+      patterns: ["(front|back|external|main|outside|patio) door.{0,40}(won't|wont|can't|cannot|doesn't|does not|will not) (lock|close|shut|secure)", "break[- ]?in|broken into|burgl\\w*|kicked in", "(can't|cannot) (be )?secure", "\\binsecure\\b", "window.{0,40}(can't|cannot|won't) (be )?(secured|close|shut|lock)", "open to the street", "lock has snapped"] },
+    { id: 'E7', band: 'P1', trade: 'Drainage', title: 'Sewage escape or only WC unusable',
+      text: 'Foul water or sewage escaping inside or outside the home, or the only WC blocked or unusable.',
+      patterns: ["\\bsewage\\b", "\\b(only|one) (toilet|loo|wc)\\b", "(toilet|loo).{0,20}overflow\\w*"] },
+    { id: 'E8', band: 'P1', trade: 'General Building', title: 'Structural danger',
+      text: 'Collapse or imminent collapse of ceilings, walls, chimneys or roof coverings.',
+      patterns: ["ceiling.{0,20}(collapsed|come down|came down|fallen|falling|caved|bowing|sagging)", "(bricks|masonry|tiles?|chimney).{0,30}(falling|fallen|fell|came off|coming off)", "falling (bricks|masonry)", "wall.{0,20}(collapsed|collapsing|bulging)", "cracks?.{0,40}(getting (wider|bigger)|widening)"] },
+    { id: 'E9', band: 'P1', trade: 'Heating & Gas', title: 'No heating or hot water, vulnerable household',
+      text: 'Total loss of heating or hot water where the household includes a vulnerable person. Coordinator confirms against the vulnerability register.',
+      requires: 'vulnerability',
+      patterns: ["no (heating|hot water|heat)\\b", "(boiler|heating).{0,30}(stopped|not working|broken|off|isn't working|won't come on)", "freezing"] },
+
+    // ---- P2 Urgent ----
+    { id: 'U1', band: 'P2', trade: 'Heating & Gas', title: 'Loss of heating or hot water',
+      text: 'Partial or total loss of heating or hot water (no vulnerable household member).',
+      patterns: ["no (heating|hot water|heat)\\b", "(boiler|heating|radiators?).{0,30}(not working|broken|stopped|won't|isn't|cutting out|losing pressure|error|fault|cold|not coming on|coming on)", "boiler.{0,20}\\b(code|pressure)\\b"] },
+    { id: 'U2', band: 'P2', trade: 'Plumbing', title: 'Contained leak',
+      text: 'Leak that is contained (for example caught in a bucket) and not near electrics.',
+      patterns: ["leak\\w*.{0,30}\\b(sink|pipe|toilet|radiator|valve|bath|basin|washing machine|cistern)", "\\b(sink|pipe|toilet|radiator|valve|bath|basin|washing machine|cistern)\\b.{0,30}leak\\w*", "\\bbucket\\b", "(pipe|valve).{0,20}drip\\w*"] },
+    { id: 'U3', band: 'P2', trade: 'Electrical', title: 'Partial loss of electrics',
+      text: 'Some sockets or lights not working, or circuit protection repeatedly tripping.',
+      patterns: ["\\b(sockets?|plugs?|lights?|switch(es)?)\\b.{0,30}(not working|stopped working|stopped|dead|don't work|doesn't work|broken)", "trip switch|tripping|trips out|fuse (keeps )?(blowing|tripping)"] },
+    { id: 'U4', band: 'P2', trade: 'Drainage', title: 'Blocked drain, sink or bath',
+      text: 'Blocked waste or drain where another WC remains usable.',
+      patterns: ["\\bblocked\\b|blockage|won't drain|backing up|won't go down|not draining"] },
+    { id: 'U5', band: 'P2', trade: 'Plumbing', title: 'WC not flushing',
+      text: 'Toilet not flushing or cistern faulty.',
+      patterns: ["(toilet|loo|cistern|flush)\\b.{0,30}(won't|doesn't|not working|broken|keeps running|running)", "flush.{0,20}broken"] },
+    { id: 'U6', band: 'P2', trade: 'Electrical', title: 'Door entry system fault',
+      text: 'Door entry, intercom or communal access system not working.',
+      patterns: ["door entry|intercom|entry ?phone|buzzer"] },
+    { id: 'U7', band: 'P2', trade: 'Pest Control', title: 'Pest infestation',
+      text: 'Rats, mice, cockroaches, bedbugs or wasp nests at the property.',
+      patterns: ["\\b(rats?|mice|mouse|cockroach\\w*|bed ?bugs|wasps?'? nest)\\b"] },
+    { id: 'U8', band: 'P2', trade: 'Damp & Mould', title: 'Damp and mould (hazard assessment required)',
+      text: 'Damp or mould reports must be assessed for health hazard within statutory timescales. Always reviewed by a coordinator.',
+      alwaysReview: true,
+      patterns: ["\\bmould\\w*|\\bdamp\\b|condensation|black spots"] },
+    { id: 'U9', band: 'P2', trade: 'Roofing', title: 'Roof leak or missing tiles',
+      text: 'Roof leaking into the home or loft, or slipped or missing tiles.',
+      patterns: ["roof.{0,30}(leak\\w*|tiles?)", "(slipped|missing|loose) tiles?", "tiles?.{0,20}(slipped|off the roof|missing)"] },
+    { id: 'U10', band: 'P2', trade: 'Glazing', title: 'Cracked or broken glazing (secure)',
+      text: 'Cracked or broken glass where the opening can still be secured.',
+      patterns: ["(cracked|crack|smashed|broken).{0,20}(window|glass|pane|glazing)", "(window|glass|pane|glazing).{0,30}(cracked|crack|smashed|broken)"] },
+
+    // ---- P3 Routine ----
+    { id: 'R1', band: 'P3', trade: 'Plumbing', title: 'Tap fault',
+      text: 'Dripping, loose or stiff taps.',
+      patterns: ["\\btaps?\\b"] },
+    { id: 'R2', band: 'P3', trade: 'Carpentry', title: 'Internal door fault',
+      text: 'Internal doors sticking, handles or hinges loose or broken.',
+      patterns: ["(bedroom|bathroom|kitchen|internal|living room|cupboard|lounge|hall) door", "door handle", "\\bhinges?\\b"] },
+    { id: 'R3', band: 'P3', trade: 'Carpentry', title: 'Kitchen units',
+      text: 'Kitchen cupboards, drawers and worktops.',
+      patterns: ["\\b(cupboards?|cabinet|drawers?|worktop|kitchen unit)\\b"] },
+    { id: 'R4', band: 'P3', trade: 'General Building', title: 'Plaster and minor cracks',
+      text: 'Loose plaster and non-structural cracks.',
+      patterns: ["\\bplaster\\b", "\\bcracks? (in|on|above|appearing)"] },
+    { id: 'R5', band: 'P3', trade: 'Electrical', title: 'Extractor fan',
+      text: 'Kitchen or bathroom extractor fans faulty or noisy.',
+      patterns: ["extractor|\\bfan\\b"] },
+    { id: 'R6', band: 'P3', trade: 'Glazing', title: 'Window mechanism',
+      text: 'Window handles, hinges, vents and draughts where the window can still be secured.',
+      patterns: ["window.{0,30}(won't open|stiff|handle|hinge|draught|vent)", "\\bdraught\\w*", "trickle vent"] },
+    { id: 'R7', band: 'P3', trade: 'Plumbing', title: 'Sealant and grout',
+      text: 'Bath and shower sealant or grout.',
+      patterns: ["sealant|silicone|grout"] },
+    { id: 'R8', band: 'P3', trade: 'Roofing', title: 'Gutters and downpipes',
+      text: 'Blocked, leaking or loose gutters and downpipes.',
+      patterns: ["gutter\\w*|downpipe"] },
+    { id: 'R9', band: 'P3', trade: 'Carpentry', title: 'Floors',
+      text: 'Loose floorboards and damaged floor coverings provided by the landlord.',
+      patterns: ["floorboards?|\\blino\\b|vinyl|floor tiles?|flooring"] },
+
+    // ---- P4 Planned ----
+    { id: 'L1', band: 'P4', trade: 'General Building', title: 'Fences, gates and outbuildings',
+      text: 'Boundary fences, gates, sheds and paths.',
+      patterns: ["\\b(fence|fencing|gate|shed|paving|garden path)\\b"] },
+    { id: 'L2', band: 'P4', trade: 'General Building', title: 'Decoration',
+      text: 'Redecoration and cosmetic paintwork.',
+      patterns: ["repaint\\w*|redecorat\\w*|decorat\\w*|paint(ing)? (is )?(flaking|peeling)|paintwork|wallpaper"] },
+    { id: 'L3', band: 'P4', trade: 'General Building', title: 'Improvements and replacements',
+      text: 'Requests for upgrades or like-for-like replacement of ageing components.',
+      patterns: ["new (kitchen|bathroom)|upgrade|replacement|walk-in shower|would like a new"] },
+  ];
+
+  const VERSION = 'policy-synth-2026.10';
+  return { VERSION, BANDS, TRADES, CLAUSES, VULNERABILITY, DANGER_CLAIM };
+});
+
+// Harbour Point repairs triage engine.
+// Decision support only: it suggests trade, priority and a queue. A coordinator
+// makes every decision. Deterministic: the same redacted text, policy version
+// and model version always produce the same decision fingerprint.
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.HPEngine = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const ENGINE_VERSION = 'engine-0.4.0';
+  const BAND_RANK = { P1: 1, P2: 2, P3: 3, P4: 4 };
+
+  // Thresholds are configuration, reviewed at each go/no-go gate.
+  const DEFAULT_CONFIG = {
+    tradeConfidenceMin: 0.80,     // below this, coordinator review
+    modelEmergencyFlag: 0.20,     // priority model P(P1) at or above this escalates
+    vagueMaxContentTokens: 3,     // at or below this, ask the tenant to clarify
+  };
+
+  // ---------- Text handling ----------
+
+  // Personal data is removed before anything else, so neither the models nor
+  // the audit log see names, contact details or addresses.
+  // [pattern, replacement, safe to apply case-insensitively to text in capitals]
+  const REDACTIONS = [
+    [/\b[\w.+-]+@[\w-]+\.[\w.]+\b/g, '[email]', true],
+    [/(?:\+44\s?|\b0)\d{2,4}[\s-]?\d{3,4}[\s-]?\d{3,4}\b/g, '[phone]', true],
+    [/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/g, '[postcode]', true],
+    [/\b([Mm]y name is|[Tt]his is|[Ii] am)\s+[A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+)?/g, '$1 [name]', true],
+    [/\b(?:Mr|Mrs|Ms|Miss|Dr|Mx)\.?\s+[A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+)?/g, '[name]', true],
+    [/\b(?:[Ff]lat|[Aa]partment|[Aa]pt|[Uu]nit)\s+\d+[a-zA-Z]?\b,?(?:\s+[A-Z][a-z]+\s+(?:House|Court|Tower|Towers|Road|Street|Close|Gardens))?/g, '[unit]', true],
+    [/\b\d+[a-zA-Z]?\s+[A-Z][a-z]+(?:\s[A-Z][a-z]+)?\s+(?:Road|Rd|Street|St|Close|Court|Avenue|Ave|Lane|Way|Drive|Crescent|Grove|Place|Gardens)\b/g, '[address]', true],
+    [/\b[A-Z][a-z]+\s+(?:House|Court|Tower|Towers|Estate|Road|Street|Close|Gardens)\b/g, '[address]', false],
+    [/(^|\s)[-–—]\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s*$/g, '$1- [name]', false],
+    [/\b(Thanks|Thank you|Regards|Cheers),?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s*\.?\s*$/g, '$1 [name]', false],
+  ];
+
+  // Name and address rules key off capital letters, so text written in
+  // capitals gets case-insensitive versions of the same rules.
+  function redact(text) {
+    let out = String(text || '');
+    const letters = out.match(/[A-Za-z]/g) || [];
+    const shouting = letters.length > 8 && letters.filter((c) => c <= 'Z').length / letters.length > 0.7;
+    for (const [re, rep, foldSafe] of REDACTIONS) {
+      if (shouting && !foldSafe) continue;
+      out = out.replace(shouting ? new RegExp(re.source, re.flags + 'i') : re, rep);
+    }
+    return out.replace(/\s+/g, ' ').trim();
+  }
+
+  // Common misspellings seen in repair reports (to be refreshed from real data).
+  const SPELLING = {
+    leeking: 'leaking', leek: 'leak', leakin: 'leaking', boiller: 'boiler', boilor: 'boiler',
+    electic: 'electric', elecricity: 'electricity', electrisity: 'electricity', cieling: 'ceiling',
+    celing: 'ceiling', mold: 'mould', moldy: 'mouldy', radiater: 'radiator', toliet: 'toilet',
+    tiolet: 'toilet', sewerage: 'sewage', socked: 'socket', shoud: 'should', wont: "won't",
+    cant: "can't", doesnt: "doesn't", isnt: "isn't", dont: "don't", sparkin: 'sparking',
+    smel: 'smell', windo: 'window', kitchin: 'kitchen', bathrom: 'bathroom',
+  };
+
+  // Urgency words are removed from the features so that the way a tenant
+  // writes ("URGENT!!!") never changes the outcome. Priority comes from the
+  // hazard described, which is how consistent treatment is demonstrated.
+  const URGENCY = /\b(urgent(ly)?|asap|immediately|right away|please+|pls|plz|help+)\b|!+/gi;
+
+  function normalise(redacted) {
+    let t = redacted.toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+    t = t.replace(/\[(email|phone|postcode|name|unit|address)\]/g, ' ');
+    t = t.replace(/\b[a-z']+\b/g, (w) => SPELLING[w] || w);
+    return t.replace(URGENCY, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  const STOP = new Set(('a an the and or but if of to in on at by for from with is are was were be been ' +
+    'it its it\'s this that there here i i\'m im we my our me us you your he she they them their his her ' +
+    'have has had do does did can could would should will just so very really also again still ' +
+    'some any all as about into out up down over than then now when what which who how get got ' +
+    'hi hello hey thanks thank cheers regards morning afternoon there someone come please ' +
+    'tenant t caller called rang ring reports reported report says said phone call logged re ' +
+    'advised touch available weekdays name email unit address postcode').split(/\s+/));
+
+  function tokens(norm) {
+    return (norm.match(/[a-z][a-z']*/g) || []).filter((w) => !STOP.has(w) && w.length > 1);
+  }
+
+  function features(norm) {
+    const tk = tokens(norm);
+    const f = tk.slice();
+    for (let i = 0; i + 1 < tk.length; i++) f.push(tk[i] + '_' + tk[i + 1]);
+    return f;
+  }
+
+  // ---------- Naive Bayes (trained offline on the coordinator-labelled sample) ----------
+
+  function trainNB(docs, labels, alpha) {
+    alpha = alpha || 0.5;
+    const counts = {}, totals = {}, docCount = {}, vocab = new Set();
+    docs.forEach((fs, i) => {
+      const c = labels[i];
+      counts[c] = counts[c] || {};
+      totals[c] = totals[c] || 0;
+      docCount[c] = (docCount[c] || 0) + 1;
+      for (const f of fs) { counts[c][f] = (counts[c][f] || 0) + 1; totals[c]++; vocab.add(f); }
+    });
+    const classes = Object.keys(docCount).sort();
+    const prior = {};
+    for (const c of classes) prior[c] = Math.log(docCount[c] / docs.length);
+    return { classes, prior, counts, totals, vocabSize: vocab.size, alpha };
+  }
+
+  function predictNB(model, fs) {
+    const { classes, prior, counts, totals, vocabSize, alpha } = model;
+    const known = fs.filter((f) => classes.some((c) => counts[c][f]));
+    const scores = classes.map((c) => {
+      let s = prior[c];
+      const denom = totals[c] + alpha * vocabSize;
+      for (const f of known) s += Math.log(((counts[c][f] || 0) + alpha) / denom);
+      return s;
+    });
+    const max = Math.max(...scores);
+    const exps = scores.map((s) => Math.exp(s - max));
+    const z = exps.reduce((a, b) => a + b, 0);
+    return classes.map((c, i) => ({ label: c, p: exps[i] / z }))
+      .sort((a, b) => b.p - a.p || (a.label < b.label ? -1 : 1));
+  }
+
+  // ---------- Fingerprinting (FNV-1a over canonical JSON) ----------
+
+  function canonical(v) {
+    if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
+    if (v && typeof v === 'object') return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}';
+    return JSON.stringify(v);
+  }
+  function fnv(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return ('00000000' + h.toString(16)).slice(-8);
+  }
+
+  // ---------- SLA ----------
+
+  function addWorkingDays(d, n) {
+    const out = new Date(d.getTime());
+    while (n > 0) { out.setUTCDate(out.getUTCDate() + 1); const wd = out.getUTCDay(); if (wd !== 0 && wd !== 6) n--; }
+    out.setUTCHours(17, 0, 0, 0);
+    return out;
+  }
+  function slaDeadline(policy, band, receivedAt) {
+    const b = policy.BANDS[band]; const d = new Date(receivedAt);
+    if (b.attendHours) return new Date(d.getTime() + b.attendHours * 3600e3);
+    if (b.workingDays) return addWorkingDays(d, b.workingDays);
+    return new Date(d.getTime() + b.calendarDays * 86400e3);
+  }
+
+  // ---------- Clarifying questions for vague reports ----------
+
+  const CLARIFY = [
+    { re: /\b(leak\w*|water|drip\w*|flood\w*|wet)\b/, hazard: true, qs: ['Where is the water coming from, and is it coming through a ceiling?', 'Is any water near lights, sockets or the fuse box?', 'Can you stop it by turning off the stopcock?'] },
+    { re: /\b(gas|smell\w*|fumes?)\b/, hazard: true, qs: ['Can you smell gas? If yes: leave the property, do not use switches, and call the gas emergency line on 0800 111 999.', 'Where is the smell strongest, and when did it start?'] },
+    { re: /\b(electric\w*|power|lights?|sockets?|plugs?|fuse\w*|smoke|burning)\b/, hazard: true, qs: ['Is there any sparking, burning smell or water near the electrics?', 'Have you lost power to the whole home or just part of it?'] },
+    { re: /\b(door|lock\w*|keys?)\b/, hazard: true, qs: ['Is it a front or back door, or an internal door?', 'Can you lock and secure your home tonight?'] },
+    { re: /\b(window|glass)\b/, hazard: true, qs: ['Is the glass broken, and which floor is the window on?', 'Can the window be closed and locked?'] },
+    { re: /\b(heating|boiler|radiators?|hot water|cold)\b/, hazard: true, qs: ['Do you have any heating or hot water at all?', 'Does anyone in the home have a health condition, a disability, or is anyone under 5 or over 75?'] },
+    { re: /\b(toilet|loo|wc|drain\w*|sewage)\b/, hazard: true, qs: ['Is this the only toilet in your home?', 'Is it overflowing or is any waste escaping?'] },
+    { re: /\b(ceiling|wall|roof)\b/, hazard: true, qs: ['Is anything cracking, bulging or falling?', 'Is water coming in?'] },
+  ];
+  // Chasers ("still not fixed") refer to an open job whose priority we cannot
+  // see from the text, which could be an emergency.
+  const REPEAT = /\b(again|still|not fixed|same problem|chasing|chase|no one came|nobody came)\b/;
+  const REPEAT_QS = ['Check the open job in the booking system and confirm its priority.', 'What is still wrong, and has it got worse since you first reported it?'];
+  const GENERIC_QS = ['Which room is affected, and what exactly is broken?', 'When did it start, and is it getting worse?'];
+
+  // ---------- Engine ----------
+
+  function createEngine(policy, model, config) {
+    const cfg = Object.assign({}, DEFAULT_CONFIG, config || {});
+    const compiled = policy.CLAUSES.map((c) => Object.assign({}, c, { res: c.patterns.map((p) => new RegExp(p, 'i')) }));
+    const vulnRe = new RegExp(policy.VULNERABILITY, 'i');
+    const dangerRe = new RegExp(policy.DANGER_CLAIM, 'i');
+    const modelVersion = model.version;
+
+    function matchClauses(norm, vulnerable) {
+      const hits = [];
+      for (const c of compiled) {
+        if (c.requires === 'vulnerability' && !vulnerable) continue;
+        const evidence = [];
+        for (const re of c.res) { const m = norm.match(re); if (m) evidence.push(m[0].trim()); }
+        if (evidence.length) hits.push({ id: c.id, band: c.band, trade: c.trade, title: c.title, text: c.text, alwaysReview: !!c.alwaysReview, evidence: Array.from(new Set(evidence)) });
+      }
+      return hits.sort((a, b) => BAND_RANK[a.band] - BAND_RANK[b.band] || (a.id < b.id ? -1 : 1));
+    }
+
+    // Typo repair against words seen at least twice in training. Fixes single
+    // slips ("ottal loss of power") so that emergency rules still fire.
+    const vocab = new Map(model.vocab || []);
+    for (const c of policy.CLAUSES) for (const w of c.patterns.join(' ').match(/[a-z]{4,}/g) || []) if (!vocab.has(w)) vocab.set(w, 1);
+    function spellCorrect(text) {
+      const corrections = [];
+      const out = text.replace(/[a-z]{4,}/g, (w) => {
+        if (vocab.has(w) || STOP.has(w) || SPELLING[w]) return w;
+        let best = null;
+        for (const [v, n] of vocab) {
+          if (Math.abs(v.length - w.length) > 1 || !oneEdit(w, v)) continue;
+          if (!best || n > best[1] || (n === best[1] && v < best[0])) best = [v, n];
+        }
+        if (!best) return w;
+        corrections.push({ from: w, to: best[0] });
+        return best[0];
+      });
+      return { text: out, corrections };
+    }
+    function mergeClauses(a, b) {
+      const byId = new Map(a.map((c) => [c.id, c]));
+      for (const c of b) {
+        const have = byId.get(c.id);
+        if (have) have.evidence = Array.from(new Set(have.evidence.concat(c.evidence)));
+        else byId.set(c.id, c);
+      }
+      return Array.from(byId.values()).sort((x, y) => BAND_RANK[x.band] - BAND_RANK[y.band] || (x.id < y.id ? -1 : 1));
+    }
+
+    function triage(report) {
+      const raw = report.text || '';
+      const redacted = redact(raw);
+      const literal = normalise(redacted);
+      const { text: norm, corrections } = spellCorrect(literal);
+      const fs = features(literal); // models see the literal text; correction only feeds the rules
+      const contentTokens = tokens(norm).length;
+      const vulnMatch = norm.match(vulnRe) || literal.match(vulnRe);
+      const dangerMatch = redacted.match(dangerRe);
+      // Rules run on the literal and the corrected text; correction can only
+      // add matches, never remove one.
+      const clauses = mergeClauses(matchClauses(literal, !!vulnMatch), corrections.length ? matchClauses(norm, !!vulnMatch) : []);
+      const top = clauses[0] || null;
+
+      const tradeDist = predictNB(model.trade, fs);
+      const prioDist = predictNB(model.priority, fs);
+      const pP1 = (prioDist.find((x) => x.label === 'P1') || { p: 0 }).p;
+
+      const trade = tradeDist[0];
+      const ruleTrade = top ? top.trade : null;
+      const priority = top ? top.band : null;
+      const reasons = [];
+      const add = (code, detail) => reasons.push({ code, detail });
+
+      // Lane decision. Order matters: safety screens come first and nothing
+      // later can move a report out of a human queue.
+      let lane;
+      const p1Clauses = clauses.filter((c) => c.band === 'P1');
+      if (p1Clauses.length) add('POLICY_EMERGENCY_MATCH', 'Matches emergency clause ' + p1Clauses.map((c) => c.id).join(', '));
+      if (dangerMatch) add('TENANT_REPORTS_DANGER', 'Tenant used the word "' + dangerMatch[0].toLowerCase() + '"');
+      if (pP1 >= cfg.modelEmergencyFlag && !p1Clauses.length) add('MODEL_EMERGENCY_SIGNAL', 'Priority model gives ' + Math.round(pP1 * 100) + '% chance of emergency');
+      const emergency = reasons.length > 0;
+
+      const clarify = CLARIFY.filter((c) => c.re.test(norm));
+      const repeat = REPEAT.test(norm);
+      const hazardAdjacent = clarify.some((c) => c.hazard) || repeat;
+
+      if (emergency) {
+        lane = 'EMERGENCY';
+      } else if (!top && contentTokens <= cfg.vagueMaxContentTokens) {
+        lane = 'CLARIFY';
+        add('TOO_VAGUE', 'Only ' + contentTokens + ' descriptive word(s); cannot tell what is broken');
+        if (repeat) add('REPEAT_REPORT', 'Looks like a chaser for an open job; its priority is unknown');
+        if (hazardAdjacent) add('POSSIBLE_HAZARD', 'Mentions something that could be an emergency; call back within 1 hour');
+      } else {
+        if (!top) add('NO_POLICY_MATCH', 'No policy clause matches; priority cannot be grounded');
+        if (vulnMatch) add('VULNERABILITY_MENTIONED', 'Mentions "' + vulnMatch[0] + '"; check vulnerability register');
+        if (top && top.alwaysReview) add('POLICY_REQUIRES_REVIEW', 'Clause ' + top.id + ' always needs a coordinator');
+        if (trade.p < cfg.tradeConfidenceMin) add('LOW_TRADE_CONFIDENCE', 'Trade confidence ' + Math.round(trade.p * 100) + '%');
+        if (ruleTrade && ruleTrade !== trade.label) add('TRADE_DISAGREEMENT', 'Model says ' + trade.label + ', clause ' + top.id + ' says ' + ruleTrade);
+        if (top && prioDist[0].label !== priority && prioDist[0].p >= 0.5) add('PRIORITY_DISAGREEMENT', 'Model says ' + prioDist[0].label + ', policy says ' + priority);
+        lane = reasons.length ? 'REVIEW' : 'CONFIRM';
+      }
+
+      // Anything in a fast human queue is treated as an emergency until a
+      // coordinator has checked it; the policy band is kept alongside.
+      const assumeP1 = (lane === 'EMERGENCY' && priority !== 'P1') || (lane === 'CLARIFY' && hazardAdjacent);
+      const suggestedPriority = assumeP1 ? 'P1' : priority || prioDist[0].label;
+      const prioritySource = assumeP1 ? (lane === 'EMERGENCY' ? 'assume_emergency_until_checked' : 'assume_emergency_until_clarified')
+        : priority ? 'policy_clause' : 'model_only_ungrounded';
+      const questions = lane === 'CLARIFY' ? (repeat ? REPEAT_QS : []).concat(clarify.length ? clarify.flatMap((c) => c.qs) : GENERIC_QS).slice(0, 4) : [];
+      const received = report.received_at || new Date().toISOString();
+
+      const decision = {
+        lane,
+        trade: trade.label,
+        priority: suggestedPriority,
+        priority_source: prioritySource,
+        clause_ids: clauses.map((c) => c.id),
+        reason_codes: reasons.map((r) => r.code),
+      };
+      const versions = { engine: ENGINE_VERSION, policy: policy.VERSION, model: modelVersion };
+
+      return {
+        id: report.id || null,
+        versions,
+        input: { redacted_text: redacted, normalised_text: norm, corrections, channel: report.channel || 'portal', received_at: received },
+        decision,
+        trade: { value: trade.label, confidence: round(trade.p), alternatives: tradeDist.slice(1, 3).map((x) => ({ label: x.label, p: round(x.p) })), rule_trade: ruleTrade },
+        priority: { value: suggestedPriority, band: policy.BANDS[suggestedPriority].name, target: policy.BANDS[suggestedPriority].target, policy_band: priority, model_opinion: { label: prioDist[0].label, p: round(prioDist[0].p), p_emergency: round(pP1) } },
+        clauses: clauses.map((c) => ({ id: c.id, band: c.band, title: c.title, text: c.text, evidence: c.evidence })),
+        reasons,
+        clarifying_questions: questions,
+        sla_deadline: slaDeadline(policy, suggestedPriority, received).toISOString(),
+        fingerprint: fnv(canonical({ decision, versions, text: redacted })),
+      };
+    }
+
+    // Replays a stored audit record: re-runs on the stored redacted text and
+    // checks the fingerprint matches what was recorded at decision time.
+    function replay(record) {
+      const again = triage({ id: record.id, text: record.input.redacted_text, channel: record.input.channel, received_at: record.input.received_at });
+      return { match: again.fingerprint === record.fingerprint, fingerprint: again.fingerprint };
+    }
+
+    return { triage, replay, config: cfg, versions: { engine: ENGINE_VERSION, policy: policy.VERSION, model: modelVersion } };
+  }
+
+  function round(x) { return Math.round(x * 1000) / 1000; }
+
+  // True when b is one substitution, insertion, deletion or adjacent swap from a.
+  function oneEdit(a, b) {
+    if (a === b) return false;
+    if (a.length === b.length) {
+      const diff = [];
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) diff.push(i);
+      return diff.length === 1 || (diff.length === 2 && diff[1] === diff[0] + 1 && a[diff[0]] === b[diff[1]] && a[diff[1]] === b[diff[0]]);
+    }
+    const [s, l] = a.length < b.length ? [a, b] : [b, a];
+    let i = 0;
+    while (i < s.length && s[i] === l[i]) i++;
+    return s.slice(i) === l.slice(i + 1);
+  }
+
+  function trainModels(reports) {
+    const texts = reports.map((r) => normalise(redact(r.text)));
+    const fs = texts.map(features);
+    const trade = trainNB(fs, reports.map((r) => r.coordinator_trade));
+    const priority = trainNB(fs, reports.map((r) => r.coordinator_priority));
+    const counts = {};
+    for (const t of texts) for (const w of t.match(/[a-z]{4,}/g) || []) counts[w] = (counts[w] || 0) + 1;
+    const vocab = Object.entries(counts).filter(([, n]) => n >= 2).sort((x, y) => (x[0] < y[0] ? -1 : 1));
+    const body = { trade, priority, vocab, trained_on: reports.length };
+    body.version = 'nb-' + fnv(canonical(body));
+    return body;
+  }
+
+  return { createEngine, trainModels, redact, normalise, tokens, fingerprint: (o) => fnv(canonical(o)), ENGINE_VERSION, DEFAULT_CONFIG };
+});
+
+// Mock of the appointment booking system's READ-ONLY availability API.
+// The MVP never writes to the booking system: it shows the earliest slot that
+// meets the policy deadline and the coordinator books it in the real system.
+// Swap getAvailability() for the client's API client in week 2 of the build.
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.HPBooking = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+
+  // GET /availability?trade=&from=&to=  -> [{start, end, operative}]
+  function getAvailability(trade, fromIso, toIso) {
+    const slots = [];
+    const from = new Date(fromIso); const to = new Date(toIso);
+    const day = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
+    for (let d = 0; d < 120 && day <= to; d++, day.setUTCDate(day.getUTCDate() + 1)) {
+      const wd = day.getUTCDay(); if (wd === 0 || wd === 6) continue;
+      for (const [h, label] of [[8, 'AM'], [12, 'PM']]) {
+        const key = trade + day.toISOString().slice(0, 10) + label;
+        if (hash(key) % 100 < 72) continue; // most slots already booked
+        const start = new Date(day.getTime() + h * 3600e3);
+        if (start < from || start > to) continue;
+        slots.push({ start: start.toISOString(), end: new Date(start.getTime() + 4 * 3600e3).toISOString(), operative: trade + ' team ' + 'ABC'[hash(key) % 3] });
+      }
+    }
+    return slots;
+  }
+
+  function suggestSlot(trade, priority, receivedAt, deadlineIso) {
+    if (priority === 'P1') return { kind: 'emergency_rota', text: 'Emergency rota: phone the on-call ' + trade + ' operative' };
+    const slots = getAvailability(trade, receivedAt, deadlineIso);
+    if (!slots.length) return { kind: 'at_risk', text: 'No ' + trade + ' slot before the policy deadline. Escalate to the repairs manager.' };
+    return { kind: 'slot', slot: slots[0], text: slots[0].operative };
+  }
+
+  return { getAvailability, suggestSlot };
+});
+
+</script>
+<script>
+window.HP_DATA = {"model":{"trade":{"classes":["Carpentry","Damp & Mould","Drainage","Electrical","General Building","Glazing","Heating & Gas","Locks & Security","Pest Control","Plumbing","Roofing"],"prior":{"Carpentry":-2.0149030205422647,"Damp & Mould":-3.4011973816621555,"Drainage":-2.7593434954897607,"Electrical":-1.9902104079518934,"General Building":-2.4456859366347192,"Glazing":-2.6127400212978853,"Heating & Gas":-2.0928645620119766,"Locks & Security":-4.31748811353631,"Pest Control":-3.624340932976365,"Plumbing":-1.3343346221891796,"Roofing":-3.0647251450409425},"counts":{"Plumbing":{"kitchen":13,"water":13,"good":7,"cistern":6,"keeps":8,"running":7,"won't":17,"fill":7,"good_cistern":2,"cistern_keeps":6,"keeps_running":7,"running_won't":7,"won't_fill":7,"radiator":5,"valve":5,"leaking":9,"onto":5,"carpet":5,"bedroom":4,"radiator_valve":5,"valve_leaking":5,"leaking_onto":5,"onto_carpet":5,"carpet_bedroom":1,"toilet":11,"flush":5,"handle":4,"spins":5,"toilet_won't":5,"won't_flush":5,"flush_handle":4,"handle_spins":4,"pouring":3,"through":3,"ceiling":7,"flat":3,"above":3,"water_pouring":3,"pouring_through":3,"through_bedroom":2,"bedroom_ceiling":2,"ceiling_flat":3,"flat_above":3,"living":6,"room":6,"tap":12,"dripping":7,"constantly":7,"living_room":6,"room_tap":2,"tap_dripping":7,"dripping_constantly":7,"burst":12,"pipe":16,"everywhere":8,"burst_pipe":8,"pipe_living":2,"room_water":2,"water_everywhere":7,"hallway":5,"hallway_tap":2,"under":10,"sink":7,"flooding":4,"pipe_burst":4,"burst_under":4,"under_sink":4,"sink_flooding":4,"flooding_kitchen":3,"kitchen_tap":1,"hot":5,"bathroom":11,"turn":5,"off":5,"uflly":1,"hot_tap":5,"tap_bathroom":5,"bathroom_won't":5,"won't_turn":5,"turn_off":5,"off_uflly":1,"good_living":1,"behind":4,"slowly":4,"pipe_behind":4,"behind_toilet":4,"toilet_leaking":4,"leaking_slowly":4,"pipe_bathroom":1,"bathroom_water":1,"leak":6,"fully":4,"off_fully":4,"leak_kitchen":1,"carpet_hallway":1,"carpet_bathroom":1,"put":3,"bucket":3,"leak_under":3,"under_kitchen":3,"kitchen_sink":3,"sink_put":3,"put_bucket":3,"bucket_under":3,"ebdroom":1,"ebdroom_tap":1,"pipe_kitchen":3,"kitchen_water":3,"grout":7,"shower":7,"coming":7,"away":7,"grout_shower":7,"shower_coming":7,"coming_away":7,"pipe_hallway":2,"hallway_water":1,"carpet_living":2,"wtaer":1,"hallway_wtaer":1,"wtaer_everywhere":1,"bedroom_tap":1,"good_burst":1,"sealant":2,"around":2,"bath":2,"black":2,"peeling":2,"sealant_around":2,"around_bath":2,"bath_black":2,"black_peeling":2,"good_grout":2,"ahndle":1,"flush_ahndle":1,"ahndle_spins":1,"good_hallway":1,"boiler":1,"losing":1,"pressure":1,"cutting":1,"boiler_keeps":1,"keeps_losing":1,"losing_pressure":1,"pressure_cutting":1,"csitern":1,"csitern_keeps":1,"through_bathroom":1,"bathroom_ceiling":1,"repair":1,"needed":1,"repair_needed":1,"kithcen":1,"flooding_kithcen":1},"Electrical":{"electrics":3,"no":5,"power":5,"whole":5,"flat":5,"week":4,"no_power":5,"power_whole":5,"whole_flat":5,"flat_week":3,"water":6,"leaking":3,"fuse":3,"box":3,"water_leaking":3,"leaking_fuse":3,"fuse_box":3,"light":7,"dripping":3,"ceiling":3,"hallway":1,"water_dripping":3,"dripping_ceiling":3,"ceiling_light":3,"light_hallway":1,"burning":3,"smell":3,"coming":2,"plug":3,"socket":3,"burning_smell":3,"smell_coming":2,"coming_plug":2,"plug_socket":3,"socket_week":1,"extractor":9,"fan":4,"bathroom":5,"stopped":7,"wokring":1,"extractor_fan":4,"fan_bathroom":4,"bathroom_stopped":4,"stopped_wokring":1,"working":7,"stopped_working":6,"lights":1,"kitchen":9,"not":1,"changed":1,"bulb":1,"already":1,"lights_kitchen":1,"kitchen_not":1,"not_working":1,"working_changed":1,"changed_bulb":1,"bulb_already":1,"coimng":1,"smell_coimng":1,"coimng_plug":1,"communal":3,"door":3,"entry":3,"buzzer":3,"broken":3,"can't":3,"let":3,"visitors":3,"communal_door":3,"door_entry":3,"entry_buzzer":3,"buzzer_broken":3,"broken_can't":3,"can't_let":3,"let_visitors":3,"noisy":5,"kitchen_extractor":5,"extractor_noisy":5,"sockets":3,"sockets_kitchen":2,"kitchen_stopped":2,"bedroom":1,"light_bedroom":1,"emergency":1,"week_emergency":1,"good":3,"trip":3,"switch":3,"keeps":3,"tripping":3,"oven":3,"good_trip":1,"trip_switch":3,"switch_keeps":3,"keeps_tripping":3,"tripping_oven":3,"since":1,"weekend":1,"socket_since":1,"since_weekend":1,"ktichen":1,"sockets_ktichen":1,"ktichen_stopped":1,"good_kitchen":1,"good_water":1,"light_kitchen":1},"Roofing":{"gutter":7,"overflowing":3,"rains":6,"gutter_overflowing":3,"overflowing_rains":3,"tiles":5,"slipped":5,"off":8,"roof":7,"after":4,"storm":5,"tiles_slipped":5,"slipped_off":5,"off_roof":5,"roof_after":4,"after_storm":4,"hanging":3,"front":3,"house":3,"gutter_hanging":3,"hanging_off":3,"off_front":3,"front_house":3,"leaking":2,"loft":2,"roof_leaking":2,"leaking_loft":2,"loft_rains":2,"good":1,"good_tiles":1,"overflownig":1,"gutter_overflownig":1,"overflownig_rains":1,"atfer":1,"roof_atfer":1,"atfer_storm":1},"Damp & Mould":{"condensation":7,"mould":7,"around":7,"windows":7,"condensation_mould":7,"mould_around":7,"around_windows":7,"damp":3,"patch":3,"bedroom":3,"ceiling":3,"wallpaper":3,"peeling":3,"damp_patch":3,"patch_bedroom":3,"bedroom_ceiling":3,"ceiling_wallpaper":3,"wallpaper_peeling":3,"good":1,"good_condensation":1},"Carpentry":{"bathroom":5,"door":26,"handle":6,"off":8,"bathroom_door":5,"door_handle":6,"handle_off":6,"emergency":2,"off_emergency":1,"internal":6,"hinge":6,"broken":14,"dropping":6,"internal_door":6,"door_hinge":6,"hinge_broken":6,"broken_door":6,"door_dropping":6,"hallway":6,"sticking":4,"won't":5,"close":5,"hallway_door":2,"door_sticking":4,"sticking_won't":4,"won't_close":5,"bathorom":1,"bathorom_door":1,"floorboard":3,"loose":3,"floorboard_loose":3,"loose_hallway":3,"lino":3,"lifting":8,"kitchen":11,"trip":3,"hazard":3,"lino_lifting":3,"lifting_kitchen":3,"kitchen_trip":3,"trip_hazard":3,"crack":1,"plaster":2,"bedroom":2,"wall":2,"crack_plaster":1,"plaster_bedroom":1,"bedroom_wall":1,"drawer":6,"runners":6,"drawer_runners":6,"runners_broken":6,"broken_kitchen":6,"bedroom_door":1,"kitchen_emergency":1,"worktop":5,"near":5,"cooker":4,"worktop_lifting":5,"lifting_near":5,"near_cooker":4,"good":4,"ocoker":1,"good_worktop":1,"near_ocoker":1,"door_broken":1,"cupboard":2,"fallen":2,"good_kitchen":2,"kitchen_cupboard":2,"cupboard_door":2,"door_fallen":2,"fallen_off":2,"good_internal":1,"coming":1,"away":1,"plaster_coming":1,"coming_away":1,"away_wall":1,"wall_hallway":1,"living":2,"room":2,"sitcking":1,"living_room":2,"room_door":2,"door_sitcking":1,"sitcking_won't":1},"Drainage":{"toilet":18,"blocked":10,"second":5,"downstairs":5,"toilet_blocked":5,"blocked_second":4,"second_toilet":5,"toilet_downstairs":5,"only":1,"overflowing":1,"only_toilet":1,"blocked_overflowing":1,"good":4,"sewage":2,"coming":2,"through":2,"bath":4,"good_sewage":1,"sewage_coming":2,"coming_through":2,"through_bath":2,"bath_toilet":2,"kitchen":4,"sink":4,"won't":5,"drain":5,"good_kitchen":2,"kitchen_sink":4,"sink_blocked":3,"blocked_won't":3,"won't_drain":3,"water":2,"go":2,"bath_water":2,"water_won't":2,"won't_go":2,"go_drain":2,"drain_blocked":2,"leak":1,"under":2,"put":1,"bucket":1,"leak_under":1,"under_kitchen":1,"sink_put":1,"put_bucket":1,"bucket_under":1,"blocekd":1,"good_toilet":1,"toilet_blocekd":1,"blocekd_second":1},"Locks & Security":{"door":4,"rfont":1,"won't":2,"lock":2,"snapped":1,"rfont_door":1,"door_won't":2,"won't_lock":1,"lock_lock":1,"lock_snapped":1,"front":1,"shut":1,"properly":1,"after":1,"break":1,"front_door":1,"won't_shut":1,"shut_properly":1,"properly_after":1,"after_break":1},"Heating & Gas":{"boiler":14,"stopped":3,"working":3,"completely":3,"am":3,"oxygen":2,"freezing":3,"boiler_stopped":3,"stopped_working":3,"working_completely":3,"completely_am":3,"am_oxygen":2,"oxygen_freezing":2,"keeps":5,"losing":1,"pressure":2,"cutting":2,"boiler_keeps":2,"keeps_losing":1,"losing_pressure":1,"pressure_cutting":2,"no":16,"heating":11,"since":5,"yesterday":3,"radiators":7,"cold":7,"no_heating":10,"heating_since":5,"since_yesterday":3,"yesterday_radiators":3,"radiators_cold":7,"hot":9,"water":9,"showing":6,"error":6,"code":6,"no_hot":6,"hot_water":9,"water_boiler":6,"boiler_showing":6,"showing_error":6,"error_code":6,"smell":6,"wife":2,"pregnant":2,"house":3,"heating_hot":3,"water_wife":2,"wife_pregnant":2,"pregnant_house":2,"good":6,"co":2,"alarm":4,"beeping":2,"not":3,"stop":2,"opened":2,"windows":2,"good_co":1,"co_alarm":2,"alarm_beeping":2,"beeping_not":2,"not_stop":2,"stop_opened":2,"opened_windows":2,"gas":4,"near":2,"cooker":2,"smell_gas":3,"gas_near":2,"near_cooker":2,"kitchen":1,"extractor":1,"noisy":1,"kitchen_extractor":1,"extractor_noisy":1,"fixed":1,"not_fixed":1,"two":1,"days":1,"heating_two":1,"two_days":1,"days_radiators":1,"heating_radiators":1,"carbon":2,"monoxide":2,"going":2,"off":2,"living":1,"room":1,"carbon_monoxide":2,"monoxide_alarm":2,"alarm_keeps":2,"keeps_going":2,"going_off":2,"off_living":1,"living_room":1,"disabled":2,"am_disabled":1,"disabled_freezing":1,"good_no":2,"weekend":2,"since_weekend":2,"weekend_radiators":2,"bathroom":1,"quite":1,"strong":1,"gas_bathroom":1,"bathroom_quite":1,"quite_strong":1,"bedroom":1,"off_bedroom":1,"lsoing":1,"good_boiler":1,"keeps_lsoing":1,"lsoing_pressure":1,"trip":1,"switch":1,"tripping":1,"oven":1,"good_trip":1,"trip_switch":1,"switch_keeps":1,"keeps_tripping":1,"tripping_oven":1,"coming":1,"cupboard":1,"gas_smell":1,"smell_coming":1,"coming_boiler":1,"boiler_cupboard":1,"son":1,"water_disabled":1,"disabled_son":1,"son_house":1,"good_smell":1},"General Building":{"like":3,"hallawy":1,"redecorated":3,"leak":3,"fixed":3,"like_hallawy":1,"hallawy_redecorated":1,"redecorated_leak":3,"leak_fixed":3,"crack":4,"plaster":10,"hallway":11,"wall":10,"crack_plaster":4,"plaster_hallway":2,"hallway_wall":2,"communal":3,"needs":3,"repainting":3,"communal_hallway":3,"hallway_needs":3,"needs_repainting":3,"new":2,"kitchen":5,"current":2,"one":2,"old":2,"new_kitchen":2,"kitchen_current":2,"current_one":2,"one_old":2,"garden":4,"gate":1,"rotten":1,"won't":1,"latch":1,"garden_gate":1,"gate_rotten":1,"rotten_won't":1,"won't_latch":1,"fence":3,"panel":3,"blown":3,"back":3,"fence_panel":3,"panel_blown":3,"blown_back":3,"back_garden":3,"like_kitchen":1,"kitchen_redecorated":1,"good":2,"erquesting":1,"upgrade":1,"walk":1,"shower":1,"good_erquesting":1,"erquesting_upgrade":1,"upgrade_walk":1,"walk_shower":1,"coming":5,"away":6,"plaster_coming":5,"coming_away":5,"away_wall":6,"wall_hallway":6,"ceiling":3,"cmoing":1,"good_plaster":1,"plaster_cmoing":1,"cmoing_away":1,"emergency":1,"plaster_kitchen":2,"kitchen_wall":2,"wall_emergency":1,"living":1,"room":1,"like_living":1,"living_room":1,"room_redecorated":1},"Glazing":{"good":3,"widnow":1,"handle":10,"snapped":3,"off":3,"bedroom":5,"good_widnow":1,"widnow_handle":1,"handle_snapped":3,"snapped_off":3,"off_bedroom":3,"kids":1,"threw":1,"brick":1,"through":3,"front":1,"window":17,"can't":2,"close":1,"kids_threw":1,"threw_brick":1,"brick_through":1,"through_front":1,"front_window":1,"window_window":1,"window_can't":1,"can't_close":1,"hallway":2,"won't":7,"open":7,"stiff":7,"good_hallway":1,"hallway_window":2,"window_won't":7,"won't_open":7,"open_handle":7,"handle_stiff":7,"living":1,"room":1,"living_room":1,"room_window":1,"bedroom_window":2,"ground":1,"floor":1,"smashed":1,"secured":1,"ground_floor":1,"floor_window":1,"window_smashed":1,"smashed_can't":1,"can't_secured":1,"bathroom":2,"bathroom_window":2,"draught":2,"coming":2,"frame":2,"draught_coming":2,"coming_through":2,"through_window":2,"window_frame":2,"pane":2,"cracked":7,"window_pane":2,"pane_cracked":2,"kitchen":2,"kitchen_window":2,"window_handle":2,"glass":5,"back":5,"door":5,"locks":5,"glass_back":5,"back_door":5,"door_cracked":5,"cracked_locks":5,"good_glass":1},"Pest Control":{"mice":3,"droppings":3,"kitchen":5,"cupboards":3,"mice_droppings":3,"droppings_kitchen":3,"kitchen_cupboards":3,"rats":3,"bin":3,"store":3,"seen":3,"one":3,"rats_bin":3,"bin_store":3,"store_seen":3,"seen_one":3,"one_kitchen":2,"kithcen":1,"one_kithcen":1,"wasps":2,"nest":2,"above":2,"back":2,"door":2,"wasps_nest":2,"nest_above":2,"above_back":2,"back_door":2,"good":1,"good_mice":1}},"totals":{"Plumbing":631,"Electrical":305,"Roofing":118,"Damp & Mould":84,"Carpentry":326,"Drainage":145,"Locks & Security":26,"Heating & Gas":367,"General Building":202,"Glazing":218,"Pest Control":74},"vocabSize":630,"alpha":0.5},"priority":{"classes":["P1","P2","P3","P4"],"prior":{"P1":-1.4411025976148857,"P2":-1.0124345924270575,"P3":-1.0788096613719298,"P4":-2.8134107167600364},"counts":{"P2":{"kitchen":15,"condensation":7,"mould":7,"around":7,"windows":7,"condensation_mould":7,"mould_around":7,"around_windows":7,"good":13,"cistern":6,"keeps":13,"running":6,"won't":17,"fill":6,"good_cistern":2,"cistern_keeps":6,"keeps_running":6,"running_won't":6,"won't_fill":6,"tiles":5,"slipped":5,"off":5,"roof":7,"after":4,"storm":5,"tiles_slipped":5,"slipped_off":5,"off_roof":5,"roof_after":4,"after_storm":4,"radiator":5,"valve":5,"leaking":10,"onto":5,"carpet":5,"bedroom":5,"radiator_valve":5,"valve_leaking":5,"leaking_onto":5,"onto_carpet":5,"carpet_bedroom":1,"toilet":21,"flush":5,"handle":5,"spins":5,"toilet_won't":5,"won't_flush":5,"flush_handle":4,"handle_spins":4,"blocked":9,"second":5,"downstairs":5,"toilet_blocked":4,"blocked_second":4,"second_toilet":5,"toilet_downstairs":5,"boiler":12,"losing":2,"pressure":3,"cutting":3,"boiler_keeps":3,"keeps_losing":2,"losing_pressure":2,"pressure_cutting":3,"no":13,"heating":7,"since":4,"yesterday":2,"radiators":6,"cold":6,"no_heating":6,"heating_since":4,"since_yesterday":2,"yesterday_radiators":2,"radiators_cold":6,"lights":1,"not":2,"working":5,"changed":1,"bulb":1,"already":1,"lights_kitchen":1,"kitchen_not":1,"not_working":1,"working_changed":1,"changed_bulb":1,"bulb_already":1,"communal":3,"door":10,"entry":3,"buzzer":3,"broken":3,"can't":3,"let":3,"visitors":3,"communal_door":3,"door_entry":3,"entry_buzzer":3,"buzzer_broken":3,"broken_can't":3,"can't_let":3,"let_visitors":3,"hot":6,"water":9,"showing":6,"error":6,"code":6,"no_hot":6,"hot_water":6,"water_boiler":6,"boiler_showing":6,"showing_error":6,"error_code":6,"crack":1,"plaster":2,"hallway":3,"wall":2,"crack_plaster":1,"plaster_hallway":1,"hallway_wall":1,"damp":3,"patch":3,"ceiling":3,"wallpaper":3,"peeling":3,"damp_patch":3,"patch_bedroom":3,"bedroom_ceiling":3,"ceiling_wallpaper":3,"wallpaper_peeling":3,"power":1,"whole":1,"flat":1,"week":1,"no_power":1,"power_whole":1,"whole_flat":1,"flat_week":1,"sink":6,"drain":5,"good_kitchen":2,"kitchen_sink":6,"sink_blocked":3,"blocked_won't":3,"won't_drain":3,"mice":2,"droppings":2,"cupboards":2,"mice_droppings":2,"droppings_kitchen":2,"kitchen_cupboards":2,"pipe":3,"behind":3,"slowly":3,"pipe_behind":3,"behind_toilet":3,"toilet_leaking":3,"leaking_slowly":3,"carpet_hallway":1,"bathroom":3,"carpet_bathroom":1,"leak":3,"under":6,"put":3,"bucket":3,"leak_under":3,"under_kitchen":3,"sink_put":3,"put_bucket":3,"bucket_under":3,"window":3,"open":1,"stiff":1,"bathroom_window":2,"window_won't":1,"won't_open":1,"open_handle":1,"handle_stiff":1,"electrics":2,"loft":2,"rains":2,"roof_leaking":2,"leaking_loft":2,"loft_rains":2,"rats":3,"bin":3,"store":3,"seen":3,"one":3,"rats_bin":3,"bin_store":3,"store_seen":3,"seen_one":3,"one_kitchen":2,"kithcen":1,"one_kithcen":1,"sockets":3,"stopped":4,"sockets_kitchen":2,"kitchen_stopped":2,"stopped_working":4,"bath":2,"go":2,"bath_water":2,"water_won't":2,"won't_go":2,"go_drain":2,"drain_blocked":2,"living":2,"room":2,"carpet_living":2,"living_room":2,"pane":2,"cracked":7,"window_pane":2,"pane_cracked":2,"trip":4,"switch":4,"tripping":4,"oven":4,"good_trip":2,"trip_switch":4,"switch_keeps":4,"keeps_tripping":4,"tripping_oven":4,"fixed":1,"not_fixed":1,"two":1,"days":1,"heating_two":1,"two_days":1,"days_radiators":1,"heating_radiators":1,"wasps":2,"nest":2,"above":2,"back":7,"wasps_nest":2,"nest_above":2,"above_back":2,"back_door":7,"glass":5,"locks":5,"glass_back":5,"door_cracked":5,"cracked_locks":5,"good_tiles":1,"completely":1,"am":1,"disabled":1,"freezing":1,"boiler_stopped":1,"working_completely":1,"completely_am":1,"am_disabled":1,"disabled_freezing":1,"good_no":1,"ahndle":1,"flush_ahndle":1,"ahndle_spins":1,"good_mice":1,"bedroom_window":1,"atfer":1,"roof_atfer":1,"atfer_storm":1,"light":3,"ktichen":1,"sockets_ktichen":1,"ktichen_stopped":1,"weekend":2,"since_weekend":2,"weekend_radiators":2,"good_glass":1,"blocekd":1,"good_toilet":1,"toilet_blocekd":1,"blocekd_second":1,"coming":1,"away":1,"plaster_coming":1,"coming_away":1,"away_wall":1,"wall_hallway":1,"lsoing":1,"good_boiler":1,"keeps_lsoing":1,"lsoing_pressure":1,"good_condensation":1},"P1":{"water":21,"electrics":1,"no":7,"power":4,"whole":4,"flat":7,"week":3,"no_power":4,"power_whole":4,"whole_flat":4,"flat_week":2,"pouring":3,"through":6,"bedroom":4,"ceiling":12,"above":3,"water_pouring":3,"pouring_through":3,"through_bedroom":2,"bedroom_ceiling":2,"ceiling_flat":3,"flat_above":3,"burst":12,"pipe":13,"living":3,"room":3,"everywhere":8,"burst_pipe":8,"pipe_living":2,"living_room":3,"room_water":2,"water_everywhere":7,"leaking":4,"fuse":3,"box":3,"water_leaking":3,"leaking_fuse":3,"fuse_box":3,"light":4,"door":4,"boiler":3,"stopped":2,"working":2,"completely":2,"am":2,"oxygen":2,"freezing":2,"boiler_stopped":2,"stopped_working":2,"working_completely":2,"completely_am":2,"am_oxygen":2,"oxygen_freezing":2,"under":4,"sink":4,"flooding":4,"kitchen":9,"pipe_burst":4,"burst_under":4,"under_sink":4,"sink_flooding":4,"flooding_kitchen":3,"dripping":3,"hallway":3,"water_dripping":3,"dripping_ceiling":3,"ceiling_light":3,"light_hallway":1,"burning":3,"smell":9,"coming":5,"plug":3,"socket":3,"burning_smell":3,"smell_coming":3,"coming_plug":2,"plug_socket":3,"socket_week":1,"behind":1,"toilet":8,"slowly":1,"pipe_behind":1,"behind_toilet":1,"toilet_leaking":1,"leaking_slowly":1,"only":1,"blocked":1,"overflowing":1,"only_toilet":1,"toilet_blocked":1,"blocked_overflowing":1,"bathroom":3,"pipe_bathroom":1,"bathroom_water":1,"coimng":1,"smell_coimng":1,"coimng_plug":1,"heating":3,"hot":3,"wife":2,"pregnant":2,"house":3,"no_heating":3,"heating_hot":3,"hot_water":3,"water_wife":2,"wife_pregnant":2,"pregnant_house":2,"kids":1,"threw":1,"brick":1,"front":2,"window":4,"can't":2,"close":1,"kids_threw":1,"threw_brick":1,"brick_through":1,"through_front":1,"front_window":1,"window_window":1,"window_can't":1,"can't_close":1,"good":6,"sewage":2,"bath":2,"good_sewage":1,"sewage_coming":2,"coming_through":2,"through_bath":2,"bath_toilet":2,"leak":1,"leak_kitchen":1,"ground":1,"floor":1,"smashed":1,"secured":1,"ground_floor":1,"floor_window":1,"window_smashed":1,"smashed_can't":1,"can't_secured":1,"co":2,"alarm":4,"beeping":2,"not":2,"stop":2,"opened":2,"windows":2,"good_co":1,"co_alarm":2,"alarm_beeping":2,"beeping_not":2,"not_stop":2,"stop_opened":2,"opened_windows":2,"pipe_kitchen":3,"kitchen_water":3,"rfont":1,"won't":3,"lock":2,"snapped":1,"rfont_door":1,"door_won't":2,"won't_lock":1,"lock_lock":1,"lock_snapped":1,"gas":4,"near":2,"cooker":2,"smell_gas":3,"gas_near":2,"near_cooker":2,"mice":1,"droppings":1,"cupboards":1,"mice_droppings":1,"droppings_kitchen":1,"kitchen_cupboards":1,"pipe_hallway":2,"hallway_water":1,"light_bedroom":1,"emergency":1,"week_emergency":1,"wtaer":1,"hallway_wtaer":1,"wtaer_everywhere":1,"carbon":2,"monoxide":2,"keeps":3,"going":2,"off":2,"carbon_monoxide":2,"monoxide_alarm":2,"alarm_keeps":2,"keeps_going":2,"going_off":2,"off_living":1,"good_burst":1,"since":1,"weekend":1,"socket_since":1,"since_weekend":1,"shut":1,"properly":1,"after":1,"break":1,"front_door":1,"won't_shut":1,"shut_properly":1,"properly_after":1,"after_break":1,"csitern":1,"running":1,"fill":1,"csitern_keeps":1,"keeps_running":1,"running_won't":1,"won't_fill":1,"quite":1,"strong":1,"gas_bathroom":1,"bathroom_quite":1,"quite_strong":1,"off_bedroom":1,"through_bathroom":1,"bathroom_ceiling":1,"cupboard":1,"gas_smell":1,"coming_boiler":1,"boiler_cupboard":1,"good_no":1,"good_water":1,"light_kitchen":1,"disabled":1,"son":1,"water_disabled":1,"disabled_son":1,"son_house":1,"good_smell":1,"kithcen":1,"flooding_kithcen":1},"P3":{"gutter":7,"overflowing":3,"rains":4,"gutter_overflowing":3,"overflowing_rains":3,"bathroom":16,"door":24,"handle":14,"off":18,"bathroom_door":4,"door_handle":5,"handle_off":5,"living":4,"room":4,"tap":12,"dripping":7,"constantly":7,"living_room":4,"room_tap":2,"tap_dripping":7,"dripping_constantly":7,"hallway":16,"hallway_tap":2,"emergency":3,"off_emergency":1,"internal":6,"hinge":6,"broken":13,"dropping":6,"internal_door":6,"door_hinge":6,"hinge_broken":6,"broken_door":6,"door_dropping":6,"kitchen":23,"kitchen_tap":1,"hot":5,"won't":15,"turn":5,"uflly":1,"hot_tap":5,"tap_bathroom":5,"bathroom_won't":5,"won't_turn":5,"turn_off":5,"off_uflly":1,"good":11,"good_living":1,"hanging":3,"front":3,"house":3,"gutter_hanging":3,"hanging_off":3,"off_front":3,"front_house":3,"sticking":4,"close":4,"hallway_door":2,"door_sticking":4,"sticking_won't":4,"won't_close":4,"extractor":9,"fan":3,"stopped":3,"wokring":1,"extractor_fan":3,"fan_bathroom":3,"bathroom_stopped":3,"stopped_wokring":1,"bathorom":1,"bathorom_door":1,"working":2,"stopped_working":2,"floorboard":3,"loose":3,"floorboard_loose":3,"loose_hallway":3,"widnow":1,"snapped":3,"bedroom":6,"good_widnow":1,"widnow_handle":1,"handle_snapped":3,"snapped_off":3,"off_bedroom":3,"noisy":6,"kitchen_extractor":6,"extractor_noisy":6,"new":1,"current":1,"one":1,"old":1,"new_kitchen":1,"kitchen_current":1,"current_one":1,"one_old":1,"leak":3,"lino":3,"lifting":8,"trip":3,"hazard":3,"lino_lifting":3,"lifting_kitchen":3,"kitchen_trip":3,"trip_hazard":3,"no":1,"heating":1,"since":1,"yesterday":1,"radiators":1,"cold":1,"no_heating":1,"heating_since":1,"since_yesterday":1,"yesterday_radiators":1,"radiators_cold":1,"fully":4,"off_fully":4,"drawer":5,"runners":5,"drawer_runners":5,"runners_broken":5,"broken_kitchen":5,"window":10,"open":6,"stiff":6,"good_hallway":2,"hallway_window":2,"window_won't":6,"won't_open":6,"open_handle":6,"handle_stiff":6,"room_window":1,"bedroom_door":1,"bedroom_window":1,"kitchen_emergency":1,"ebdroom":1,"ebdroom_tap":1,"worktop":5,"near":5,"cooker":4,"worktop_lifting":5,"lifting_near":5,"near_cooker":4,"draught":2,"coming":13,"through":2,"frame":2,"draught_coming":2,"coming_through":2,"through_window":2,"window_frame":2,"grout":6,"shower":6,"away":12,"grout_shower":6,"shower_coming":6,"coming_away":11,"ocoker":1,"good_worktop":1,"near_ocoker":1,"plaster":9,"wall":9,"plaster_coming":5,"away_wall":6,"wall_hallway":6,"crack":3,"crack_plaster":3,"plaster_hallway":1,"hallway_wall":1,"ceiling":1,"door_broken":1,"bedroom_tap":1,"cmoing":1,"good_plaster":1,"plaster_cmoing":1,"cmoing_away":1,"kitchen_window":2,"window_handle":2,"sealant":2,"around":2,"bath":2,"black":2,"peeling":2,"sealant_around":2,"around_bath":2,"bath_black":2,"black_peeling":2,"cupboard":2,"fallen":2,"good_kitchen":3,"kitchen_cupboard":2,"cupboard_door":2,"door_fallen":2,"fallen_off":2,"overflownig":1,"gutter_overflownig":1,"overflownig_rains":1,"good_grout":1,"under":2,"sink":1,"put":1,"bucket":1,"leak_under":1,"under_kitchen":1,"kitchen_sink":1,"sink_put":1,"put_bucket":1,"bucket_under":1,"good_internal":1,"plaster_kitchen":2,"kitchen_wall":2,"wall_emergency":1,"repair":1,"needed":1,"repair_needed":1,"room_door":1},"P4":{"like":3,"hallawy":1,"redecorated":3,"leak":3,"fixed":3,"like_hallawy":1,"hallawy_redecorated":1,"redecorated_leak":3,"leak_fixed":3,"communal":3,"hallway":3,"needs":3,"repainting":3,"communal_hallway":3,"hallway_needs":3,"needs_repainting":3,"crack":1,"plaster":1,"bedroom":1,"wall":1,"crack_plaster":1,"plaster_bedroom":1,"bedroom_wall":1,"garden":4,"gate":1,"rotten":1,"won't":2,"latch":1,"garden_gate":1,"gate_rotten":1,"rotten_won't":1,"won't_latch":1,"fence":3,"panel":3,"blown":3,"back":3,"fence_panel":3,"panel_blown":3,"blown_back":3,"back_garden":3,"kitchen":3,"like_kitchen":1,"kitchen_redecorated":1,"new":1,"current":1,"one":1,"old":1,"new_kitchen":1,"kitchen_current":1,"current_one":1,"one_old":1,"good":2,"erquesting":1,"upgrade":1,"walk":1,"shower":2,"good_erquesting":1,"erquesting_upgrade":1,"upgrade_walk":1,"walk_shower":1,"extractor":1,"fan":1,"bathroom":2,"stopped":1,"working":1,"extractor_fan":1,"fan_bathroom":1,"bathroom_stopped":1,"stopped_working":1,"grout":1,"coming":1,"away":1,"good_grout":1,"grout_shower":1,"shower_coming":1,"coming_away":1,"living":2,"room":2,"door":2,"sitcking":1,"close":1,"living_room":2,"room_door":1,"door_sitcking":1,"sitcking_won't":1,"won't_close":1,"drawer":1,"runners":1,"broken":1,"drawer_runners":1,"runners_broken":1,"broken_kitchen":1,"handle":1,"off":1,"bathroom_door":1,"door_handle":1,"handle_off":1,"like_living":1,"room_redecorated":1}},"totals":{"P2":967,"P1":561,"P3":814,"P4":154},"vocabSize":630,"alpha":0.5},"vocab":[["about",4],["above",5],["advised",44],["after",5],["alarm",4],["around",9],["available",53],["away",14],["back",10],["bath",6],["bathroom",24],["bedroom",16],["beeping",2],["behind",4],["black",2],["blocked",10],["blown",3],["boiler",15],["broken",17],["bucket",4],["burning",3],["burst",12],["buzzer",3],["called",43],["caller",35],["carbon",2],["carpet",5],["ceiling",16],["cistern",6],["close",6],["code",6],["cold",7],["come",32],["coming",20],["communal",6],["completely",3],["condensation",7],["constantly",7],["cooker",6],["crack",5],["cracked",7],["cupboard",3],["cupboards",3],["current",2],["cutting",3],["damp",3],["disabled",2],["door",40],["down",5],["downstairs",5],["drain",5],["draught",2],["drawer",6],["dripping",10],["dropping",6],["droppings",3],["electrics",3],["emergency",4],["entry",3],["error",6],["everywhere",8],["extractor",10],["fallen",2],["fence",3],["fill",7],["fixed",4],["flat",8],["flooding",4],["floorboard",3],["flush",5],["frame",2],["freezing",3],["from",17],["front",5],["fully",4],["fuse",3],["garden",4],["glass",5],["going",2],["good",32],["grout",7],["gutter",7],["hallway",25],["handle",20],["hanging",3],["have",22],["hazard",3],["heating",11],["hello",33],["hinge",6],["house",6],["internal",6],["into",5],["just",5],["keeps",16],["kitchen",50],["kithcen",2],["leak",10],["leaking",14],["lifting",8],["light",7],["like",3],["lino",3],["living",11],["lock",2],["locks",5],["loft",2],["loose",3],["losing",2],["mice",3],["monoxide",2],["morning",34],["mould",7],["name",14],["near",7],["needs",3],["nest",2],["noisy",6],["onto",5],["open",7],["opened",2],["oven",4],["overflowing",4],["oxygen",2],["pane",2],["panel",3],["patch",3],["peeling",5],["phone",28],["pipe",16],["plaster",12],["plug",3],["pouring",3],["power",5],["pregnant",2],["pressure",3],["radiator",5],["radiators",7],["rains",6],["rang",27],["rats",3],["really",6],["redecorated",3],["repainting",3],["report",55],["reports",35],["roof",7],["room",11],["runners",6],["running",7],["sealant",2],["second",5],["seen",3],["sewage",2],["shower",8],["showing",6],["since",6],["sink",11],["slipped",5],["slowly",4],["smell",9],["snapped",4],["socket",3],["sockets",3],["some",5],["someone",26],["spins",5],["sticking",4],["stiff",7],["still",6],["stop",2],["stopped",10],["store",3],["storm",5],["switch",4],["tenant",140],["thank",25],["thanks",29],["there",25],["this",20],["through",8],["tiles",5],["toilet",29],["touch",44],["trip",7],["tripping",4],["turn",5],["under",12],["valve",5],["very",2],["visitors",3],["wall",12],["wallpaper",3],["wasps",2],["water",30],["week",4],["weekdays",53],["weekend",3],["when",10],["whole",5],["wife",2],["will",46],["window",17],["windows",9],["working",10],["worktop",5],["would",3],["yesterday",3]],"trained_on":300,"version":"nb-c89dda58"},"results":{"generated_at":"2026-10-29T14:43:40.632Z","synthetic":true,"versions":{"engine":"engine-0.4.0","policy":"policy-synth-2026.10","model":"nb-c89dda58"},"config":{"tradeConfidenceMin":0.8,"modelEmergencyFlag":0.2,"vagueMaxContentTokens":3},"counts":{"total":500,"train":300,"test":200,"vague_test":30,"p1_test":48,"holdout_test":57},"lanes":{"EMERGENCY":75,"CLARIFY":15,"REVIEW":34,"CONFIRM":76},"metrics":[{"id":"S1","group":"Safety","name":"Emergencies (policy P1) reaching a human queue","value":"100% (48/48)","target":"100%","pass":true,"note":""},{"id":"S2","group":"Safety","name":"Emergencies flagged for immediate action (emergency queue or 1-hour callback)","value":"100%","target":"≥ 95%","pass":true,"note":""},{"id":"S3","group":"Safety","name":"Red-team emergencies (hand-written, unseen) reaching a human","value":"100% (15/15)","target":"100%","pass":true,"note":""},{"id":"S4","group":"Safety","name":"Under-prioritised in the ready-to-confirm queue","value":"0% (0/76)","target":"≤ 1%","pass":true,"note":""},{"id":"S5","group":"Safety","name":"Vague reports kept out of the ready-to-confirm queue","value":"100%","target":"100%","pass":true,"note":""},{"id":"Q1","group":"Quality","name":"Ready-to-confirm: trade correct","value":"100%","target":"≥ 95%","pass":true,"note":""},{"id":"Q2","group":"Quality","name":"Ready-to-confirm: priority correct","value":"100%","target":"≥ 97%","pass":true,"note":""},{"id":"Q3","group":"Quality","name":"All reports: trade correct (vs policy truth)","value":"81.5%","target":"report only","pass":null,"note":"Includes vague reports, which no system can classify from the text"},{"id":"Q4","group":"Quality","name":"Policy-grounded priority correct","value":"97.3% of 149","target":"≥ 95%","pass":true,"note":""},{"id":"Q5","group":"Quality","name":"Emergency queue precision (truly P1)","value":"56%","target":"report only","pass":null,"note":"Over-escalation costs coordinator time but is the safe failure"},{"id":"G1","group":"Groundedness","name":"Cited clauses exist in the policy","value":"100%","target":"100%","pass":true,"note":""},{"id":"G2","group":"Groundedness","name":"Evidence quotes found verbatim in the (redacted) report","value":"100%","target":"100%","pass":true,"note":""},{"id":"G3","group":"Groundedness","name":"Policy band equals the band of the highest cited clause","value":"100%","target":"100%","pass":true,"note":""},{"id":"G4","group":"Groundedness","name":"Ready-to-confirm items with no policy clause","value":"0","target":"0","pass":true,"note":""},{"id":"C1","group":"Consistency","name":"Same input gives same fingerprint on re-run","value":"100%","target":"100%","pass":true,"note":""},{"id":"C2","group":"Consistency","name":"Audit replay reproduces the recorded decision","value":"100%","target":"100%","pass":true,"note":""},{"id":"C3","group":"Consistency","name":"Decision unchanged when name, address or contact details change","value":"100% (1400 variants)","target":"100%","pass":true,"note":""},{"id":"C4","group":"Consistency","name":"Decision unchanged when tenant shouts \"URGENT!!!\"","value":"100%","target":"100%","pass":true,"note":""},{"id":"R1","group":"Robustness","name":"Same queue and priority after a typo in the key word","value":"93.1% (144)","target":"report only","pass":null,"note":"Typos degrade to human review, not to a wrong answer"},{"id":"R2","group":"Robustness","name":"Emergencies with a typo still reaching a human","value":"100%","target":"100%","pass":true,"note":""},{"id":"V1","group":"Value","name":"Reports ready to confirm without a full read","value":"38%","target":"≥ 40%","pass":false,"note":""},{"id":"V2","group":"Value","name":"Coordinator hours released per year (modelled)","value":"470 h (0.28 FTE)","target":"report only","pass":null,"note":"Assumes 33,000 reports a year, 3.0 min full read, 0.75 min confirm"}],"holdout_vs_seen":{"holdout":{"n":57,"confirm":1,"confirm_correct":1},"seen":{"n":113,"confirm":75,"confirm_correct":75}},"coordinator_vs_policy":{"agree_pct":97.5,"p1_downgraded_by_coordinator":1,"note":"Coordinator noise is injected by the generator (7%); illustrative only"},"trade_agreement_with_coordinator_pct":77.5,"confirm_over_prioritised":0,"confirm_under_prioritised":[],"red_team":[{"text":"not sure if it matters but there is a hissing noise from the gas pipe by the cooker","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"smells like rotten eggs in the kitchen","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"the kids said the socket went bang and now there is a black mark round it","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"my nan is 91 and her heating has been off since friday","lane":"REVIEW","priority":"P2","reasons":["NO_POLICY_MATCH"]},{"text":"the tap is dripping onto the plug socket below the sink","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"the alarm thing on the ceiling by the boiler keeps beeping and we feel dizzy","lane":"EMERGENCY","priority":"P1","reasons":["MODEL_EMERGENCY_SIGNAL"]},{"text":"front door got kicked in last night, cannot lock it","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"toilet is overflowing and it is our only one","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"the bathroom ceiling is bowing and dripping","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"water running down the wall behind the fuse box","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"big crack in the wall and it is getting wider every day","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"brown water coming through the light in the hallway","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"our back door won't lock since the storm","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"radiator leaking and it's near the extension lead","lane":"EMERGENCY","priority":"P1","reasons":["POLICY_EMERGENCY_MATCH"]},{"text":"boiler making a loud banging noise and the pilot keeps going out, slight smell","lane":"EMERGENCY","priority":"P1","reasons":["MODEL_EMERGENCY_SIGNAL"]}],"red_team_misses":[],"counterfactual_failures":[],"value_assumptions":{"reportsPerYear":33000,"minutesFullRead":3,"minutesConfirm":0.75,"hoursPerFte":1650},"reason_frequency":{"MODEL_EMERGENCY_SIGNAL":32,"LOW_TRADE_CONFIDENCE":30,"POLICY_EMERGENCY_MATCH":40,"POLICY_REQUIRES_REVIEW":4,"TOO_VAGUE":15,"TRADE_DISAGREEMENT":11,"PRIORITY_DISAGREEMENT":8,"POSSIBLE_HAZARD":11,"REPEAT_REPORT":7,"VULNERABILITY_MENTIONED":1,"TENANT_REPORTS_DANGER":4,"NO_POLICY_MATCH":1}},"queue":[{"id":"SYN-0032","channel":"phone","text":"Tenant called: hallway tap is dripping constantly Tenant available weekdays.","received_at":"2026-10-25T18:10:00.000Z","truth_priority":"P3","truth_trade":"Plumbing"},{"id":"SYN-0147","channel":"portal","text":"Leak under the kitchen sink, I have put a bucket under it","received_at":"2026-10-25T18:45:00.000Z","truth_priority":"P2","truth_trade":"Plumbing"},{"id":"SYN-0031","channel":"phone","text":"Phone report: condensation and mould around all the windows Advised tenant we will be in touch.","received_at":"2026-10-25T19:20:00.000Z","truth_priority":"P2","truth_trade":"Damp & Mould"},{"id":"SYN-0121","channel":"portal","text":"Hello, someone tried to break in and the back door frame is smashed Thank you","received_at":"2026-10-25T19:55:00.000Z","truth_priority":"P1","truth_trade":"Locks & Security"},{"id":"SYN-0111","channel":"portal","text":"Hello, drawer runners broken in the kitchen Thanks.","received_at":"2026-10-25T20:30:00.000Z","truth_priority":"P3","truth_trade":"Carpentry"},{"id":"SYN-0356","channel":"phone","text":"T rang to report leak Tenant available weekdays.","received_at":"2026-10-25T21:05:00.000Z","truth_priority":"P1","truth_trade":"Plumbing"},{"id":"SYN-0016","channel":"phone","text":"Phone report: no hot water, boiler showing an error code Advised tenant we will be in touch.","received_at":"2026-10-25T21:40:00.000Z","truth_priority":"P2","truth_trade":"Heating & Gas"},{"id":"SYN-0146","channel":"portal","text":"Hi there, garden gate is rotten and won't latch Can you help?","received_at":"2026-10-25T22:15:00.000Z","truth_priority":"P4","truth_trade":"General Building"},{"id":"SYN-0112","channel":"phone","text":"Caller reports paint is flaking on the stairwell walls","received_at":"2026-10-25T22:50:00.000Z","truth_priority":"P4","truth_trade":"General Building"},{"id":"SYN-0092","channel":"portal","text":"Good morning, My name is Tom Evans, flat 13 Tower Court. trickle vent on the window is broken","received_at":"2026-10-25T23:25:00.000Z","truth_priority":"P3","truth_trade":"Glazing"},{"id":"SYN-0057","channel":"portal","text":"Hi there, kitchen sink is blocked and won't drain Thanks.","received_at":"2026-10-26T00:00:00.000Z","truth_priority":"P2","truth_trade":"Drainage"},{"id":"SYN-0056","channel":"phone","text":"Tenant called: heating Tenant available weekdays.","received_at":"2026-10-26T00:35:00.000Z","truth_priority":"P1","truth_trade":"Heating & Gas"},{"id":"SYN-0046","channel":"phone","text":"Phone report: rats in the bin store and I have seen one in the kitchen","received_at":"2026-10-26T01:10:00.000Z","truth_priority":"P2","truth_trade":"Pest Control"},{"id":"SYN-0106","channel":"phone","text":"Caller reports still not fixed","received_at":"2026-10-26T01:45:00.000Z","truth_priority":"P1","truth_trade":"Electrical"},{"id":"SYN-0021","channel":"portal","text":"Hi, the flush on our loo has broken, have to pour water down it Can you help?","received_at":"2026-10-26T02:20:00.000Z","truth_priority":"P2","truth_trade":"Plumbing"},{"id":"SYN-0042","channel":"portal","text":"Hi, the carbon monoixde detector by the boiler is sounding Please can someone come out.","received_at":"2026-10-26T02:55:00.000Z","truth_priority":"P1","truth_trade":"Heating & Gas"},{"id":"SYN-0071","channel":"portal","text":"Hi, extractor fan in the bathroom has stopped working Thanks.","received_at":"2026-10-26T03:30:00.000Z","truth_priority":"P3","truth_trade":"Electrical"},{"id":"SYN-0406","channel":"portal","text":"Repair needed","received_at":"2026-10-26T04:05:00.000Z","truth_priority":"P2","truth_trade":"Glazing"},{"id":"SYN-0187","channel":"phone","text":"Tenant called: would like a replacement front door as ours is old and tatty Tenant available weekdays.","received_at":"2026-10-26T04:40:00.000Z","truth_priority":"P4","truth_trade":"General Building"},{"id":"SYN-0181","channel":"phone","text":"Caller reports bathroom door handle has come off Advised tenant we will be in touch.","received_at":"2026-10-26T05:15:00.000Z","truth_priority":"P3","truth_trade":"Carpentry"},{"id":"SYN-0012","channel":"phone","text":"T rang to report roof is leaking into the loft when it rains Tenant available weekdays.","received_at":"2026-10-26T05:50:00.000Z","truth_priority":"P2","truth_trade":"Roofing"},{"id":"SYN-0172","channel":"phone","text":"Caller reports gas smell coming from the boiler cupboard","received_at":"2026-10-26T06:25:00.000Z","truth_priority":"P1","truth_trade":"Heating & Gas"},{"id":"SYN-0432","channel":"portal","text":"Good morning, communal hallway needs repainting Thanks.","received_at":"2026-10-26T07:00:00.000Z","truth_priority":"P4","truth_trade":"General Building"},{"id":"SYN-0137","channel":"phone","text":"Phone report: water coming thruogh the ceiling and the stopcock won't move","received_at":"2026-10-26T07:35:00.000Z","truth_priority":"P1","truth_trade":"Plumbing"}],"docs":[{"id":"handover","label":"Handover pack","html":"\u003ch2 id=\"harbour-point-repairs-triage-handover-pack\">Harbour Point repairs triage: handover pack\u003c/h2>\n\u003cp>MVP v0.4 · engine-0.4.0 · policy-synth-2026.10 · model nb-c89dda58 · 29 October 2026 · \u003cstrong>All data synthetic\u003c/strong>\u003c/p>\n\u003ch3 id=\"1-discovery-and-mvp-scope\">1. Discovery and MVP scope\u003c/h3>\n\u003cp>\u003cstrong>Problem.\u003c/strong> Six coordinators read every repair report (about 33,000 a year, modelled at 3 per home) to choose a trade and one of four priority bands. Emergencies carry a statutory response time, so a wrong band harms tenants and creates regulatory exposure.\u003c/p>\n\u003cp>\u003cstrong>Reframed ask.\u003c/strong> The sponsor asked for coordinators to \"stop reading every one\". The scope we will defend is narrower: \u003cstrong>put emergencies in front of a human first, and let coordinators confirm clear routine reports without a full read.\u003c/strong> The tool suggests. Coordinators decide, every time.\u003c/p>\n\u003cp>\u003cstrong>Users.\u003c/strong> Repairs coordinators; the repairs manager (queues, SLAs); the compliance lead (audit evidence). Tenants are affected but never use it.\u003c/p>\n\u003cp>\u003cstrong>Workflow (to-be).\u003c/strong> Report arrives → personal data redacted → rules and models suggest trade and priority → one of four queues: \u003cem>Emergency check now\u003c/em>, \u003cem>Needs clarifying\u003c/em> (callback questions), \u003cem>Coordinator review\u003c/em>, \u003cem>Ready to confirm\u003c/em> → coordinator accepts or overrides with a reason → coordinator books in the booking system, guided by a read-only slot suggestion → decision logged with a replayable explanation.\u003c/p>\n\u003cp>\u003cstrong>In scope:\u003c/strong> suggestion, queueing, explanation, audit log, read-only slot lookup. \u003cstrong>Out of scope:\u003c/strong> auto-booking, auto-closing, tenant-facing messages, any write to client systems.\u003c/p>\n\u003cp>\u003cstrong>Value metric.\u003c/strong> Share of reports ready to confirm without a full read, \u003cstrong>with zero under-prioritised emergencies in that share\u003c/strong>. Secondary: emergency time-to-human, and identical outcomes for identical hazards.\u003c/p>\n\u003cp>\u003cstrong>Synthetic data plan.\u003c/strong> Real tenant data stays in the tenancy. We generated 500 seeded reports matching the brief: coordinator labels with 7% injected inconsistency, 15% vague text (\"leak\", \"door\"), phone and portal styles, typos, names and addresses to test redaction, and holdout phrasings that appear only in the test split. A synthetic policy stands in for the published one. Gate 1 repeats every test on the real sample, inside the tenancy.\u003c/p>\n\u003ch3 id=\"2-build-and-test\">2. Build and test\u003c/h3>\n\u003cp>\u003cstrong>What we built.\u003c/strong> A triage console over an explainable engine:\u003c/p>\n\u003col>\u003cli>\u003cstrong>Redaction.\u003c/strong> Names, contact details and addresses are removed first, so neither models nor audit log hold them.\u003c/li>\u003cli>\u003cstrong>Policy rules.\u003c/strong> 31 machine-readable clauses across four bands. A priority is only suggested when a clause matches, shown with quoted evidence. Spell-correction can add rule matches, never remove them.\u003c/li>\u003cli>\u003cstrong>Two naive Bayes models\u003c/strong> (trade, priority), trained on 300 labelled reports, give confidence and a second opinion. A ≥20% emergency probability escalates even when no rule fired.\u003c/li>\u003c/ol>\n\u003cp>Once a safety screen fires, nothing can move the report out of a human queue. A mock booking API suggests the earliest slot inside the deadline (read-only).\u003c/p>\n\u003cp>\u003cstrong>Evaluation plan and results\u003c/strong> (200 held-out synthetic reports, 15 red-team reports):\u003c/p>\n\u003cdiv class=\"tablewrap\">\u003ctable>\u003cthead>\u003ctr>\u003cth>Dimension\u003c/th>\u003cth>Test\u003c/th>\u003cth>Target\u003c/th>\u003cth>Result\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody>\u003ctr>\u003ctd>Safety\u003c/td>\u003ctd>Emergencies reaching a human\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>\u003cstrong>100%\u003c/strong> (48/48)\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Safety\u003c/td>\u003ctd>Red-team emergencies reaching a human\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>\u003cstrong>100%\u003c/strong> (15/15)*\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Safety\u003c/td>\u003ctd>Under-prioritised in \u003cem>Ready to confirm\u003c/em>\u003c/td>\u003ctd>≤1%\u003c/td>\u003ctd>\u003cstrong>0%\u003c/strong> (0/76)\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Quality\u003c/td>\u003ctd>Trade and priority correct in \u003cem>Ready to confirm\u003c/em>\u003c/td>\u003ctd>≥95% / ≥97%\u003c/td>\u003ctd>\u003cstrong>100% / 100%\u003c/strong>\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Quality\u003c/td>\u003ctd>Emergency queue precision\u003c/td>\u003ctd>report\u003c/td>\u003ctd>56%\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Groundedness\u003c/td>\u003ctd>Clause exists, evidence verbatim, band consistent\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>\u003cstrong>100%\u003c/strong>\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Consistency\u003c/td>\u003ctd>Same output on re-run, audit replay, name/address swap, \"URGENT!!!\"\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>\u003cstrong>100%\u003c/strong>\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Robustness\u003c/td>\u003ctd>Emergencies with a typo still reaching a human\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>\u003cstrong>100%\u003c/strong>\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Value\u003c/td>\u003ctd>Ready to confirm without a full read\u003c/td>\u003ctd>≥40%\u003c/td>\u003ctd>\u003cstrong>38% FAIL\u003c/strong>\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Value\u003c/td>\u003ctd>Of those, on unseen phrasing\u003c/td>\u003ctd>report\u003c/td>\u003ctd>\u003cstrong>1 of 57\u003c/strong>\u003c/td>\u003c/tr>\u003c/tbody>\u003c/table>\u003c/div>\n\u003cp>\u003cem>The first run found 7 defects, including an emergency typo that landed in \u003c/em>Ready to confirm*. All are fixed and kept as regression tests; red-team results are therefore optimistic.\u003c/p>\n\u003cp>\u003cstrong>Read this carefully.\u003c/strong> We wrote both the generator and the rules, so synthetic accuracy is circular. These numbers prove the safety architecture and the plumbing. They do not prove real-world value.\u003c/p>\n\u003ch3 id=\"3-governance-review\">3. Governance review\u003c/h3>\n\u003cp>\u003cstrong>Responsible AI checklist\u003c/strong> (full evidence in Appendix B):\u003c/p>\n\u003cdiv class=\"tablewrap\">\u003ctable>\u003cthead>\u003ctr>\u003cth>Principle\u003c/th>\u003cth>Control\u003c/th>\u003cth>Evidence\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody>\u003ctr>\u003ctd>Human oversight\u003c/td>\u003ctd>Every decision needs a coordinator; emergency items need an explicit hazard check before accept\u003c/td>\u003ctd>Console behaviour; S1, S2\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Safety\u003c/td>\u003ctd>Ordered routing; model escalation; 1-hour callback for vague hazard words and chasers\u003c/td>\u003ctd>S1–S5, R2\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Fairness and consistency\u003c/td>\u003ctd>Redaction before processing; urgency words stripped; vulnerability mentions route to a human and never auto-uplift\u003c/td>\u003ctd>C3 (1,400 variants), C4\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Transparency\u003c/td>\u003ctd>Clause, quoted evidence, confidence and reason codes on every item\u003c/td>\u003ctd>G1–G3\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Accountability\u003c/td>\u003ctd>Versioned engine, policy and model; fingerprinted decisions; replay\u003c/td>\u003ctd>C1, C2\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Privacy\u003c/td>\u003ctd>Synthetic data only; no tenant data leaves the tenancy; audit log holds redacted text only\u003c/td>\u003ctd>Data plan; redaction tests\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Workforce impact\u003c/td>\u003ctd>Positioned as decision support; modelled saving is 0.28 FTE, which is not a headcount case\u003c/td>\u003ctd>V2\u003c/td>\u003c/tr>\u003c/tbody>\u003c/table>\u003c/div>\n\u003cp>\u003cstrong>Production readiness checklist\u003c/strong> (Appendix B): 9 of 22 items met, 13 open. Met: determinism, explainability, audit replay, redaction, no write access, evaluation harness, red-team set, versioning, runbook. Open items that block production: real-data evaluation inside the tenancy, DPIA, an equality impact assessment, client policy encoded and signed off by the repairs manager, Awaab's Law timescales confirmed by legal, SSO and role-based access, a durable audit store, monitoring, coordinator training, and a named service owner.\u003c/p>\n\u003cp>\u003cstrong>Key risks.\u003c/strong> (1) Over-trust: coordinators may rubber-stamp \u003cem>Ready to confirm\u003c/em>. Mitigation: weekly 10% blind re-triage sample. (2) Phrasing drift: real tenant language is more varied than our templates, and unseen phrasing falls to review. Safe, but it erodes value. (3) Emergency over-escalation (44% of the emergency queue is not P1) could cause alert fatigue. (4) Workforce trust: two coordinators expect headcount cuts. Mitigation: co-design, plus a written commitment from the sponsor.\u003c/p>\n\u003ch3 id=\"4-handover-pack\">4. Handover pack\u003c/h3>\n\u003cp>\u003cstrong>Prototype:\u003c/strong> \u003ca href=\"https://claude.ai/artifact/TnCeJjgw3nbUm6jvu6SfUK\" target=\"_blank\" rel=\"noopener\">https://claude.ai/artifact/TnCeJjgw3nbUm6jvu6SfUK\u003c/a> (private until shared from its Share menu). One self-contained page: triage queue, live \"try a report\", evaluation, audit log with replay, and this pack. Source: \u003ccode>harbour-point-triage/\u003c/code> (Node, no dependencies). Rebuild with \u003ccode>node build.js\u003c/code>.\u003c/p>\n\u003cp>\u003cstrong>Architecture (target).\u003c/strong>\u003c/p>\n\u003cdiv class=\"arch\" data-arch>\u003c/div>\n\u003cp>Everything runs inside the client tenancy. No external model or API calls.\u003c/p>\n\u003cp>\u003cstrong>Backlog\u003c/strong> (Appendix D, top 5): encode the real policy; Gate 1 real-data evaluation; booking API adapter; open-job lookup for chasers; vulnerability register lookup in place of text cues.\u003c/p>\n\u003cp>\u003cstrong>Monitoring.\u003c/strong> Weekly: queue mix, override rate by reason, emergency-queue precision, and the blind re-triage sample. Alert if any override changes a suggested band to P1, if \u003cem>Ready to confirm\u003c/em> share moves by more than 10 points, or if model confidence drifts. Every alert opens an incident under the runbook.\u003c/p>\n\u003cp>\u003cstrong>Runbook\u003c/strong> (Appendix A): start and stop, kill switch (route everything to \u003cem>Coordinator review\u003c/em>), retraining and threshold change control, incident handling for a missed emergency, and audit replay for complaints and regulators.\u003c/p>\n\u003cp>\u003cstrong>Controls\u003c/strong> (Appendix B): 14 controls, each with an owner, a test and the evidence listed.\u003c/p>\n\u003ch3 id=\"5-final-demo\">5. Final demo\u003c/h3>\n\u003cp>\u003cstrong>Story: Monday 8:05, 24 reports overnight.\u003c/strong> Today a coordinator reads them in arrival order, so a gas smell reported at 06:25 is 22nd in line.\u003c/p>\n\u003col>\u003cli>\u003cstrong>Open the queue.\u003c/strong> The console has already sorted it. \u003cem>Emergency check now\u003c/em> sits at the top with its reasons: \"Matches emergency clause E1\", with the words \"smell of gas\" quoted from the report. The coordinator calls the tenant first. Accept stays disabled until they confirm the hazard check.\u003c/li>\u003cli>\u003cstrong>Vague report.\u003c/strong> \"Leak\" lands in \u003cem>Needs clarifying\u003c/em> with a 1-hour callback and three scripted questions (ceiling? near electrics? stopcock?). It is never guessed.\u003c/li>\u003cli>\u003cstrong>Ready to confirm.\u003c/strong> \"Hallway tap is dripping constantly\": Plumbing, Routine (clause R1), 20 working days, earliest plumbing slot shown. One click accepts it. The coordinator books it in the booking system as usual.\u003c/li>\u003cli>\u003cstrong>Override.\u003c/strong> The coordinator changes a suggestion, and the console requires a reason. That reason becomes monitoring data.\u003c/li>\u003cli>\u003cstrong>Try your own.\u003c/strong> Type \"my nan is 91 and her heating has been off since friday\". It reaches a human, but only because no clause matched: the vulnerability lexicon missed \"91\". We show this gap on purpose.\u003c/li>\u003cli>\u003cstrong>Audit.\u003c/strong> Open the log and press \u003cem>Replay\u003c/em>. The engine reproduces the decision and fingerprint exactly. This is the evidence for the consistency standard.\u003c/li>\u003cli>\u003cstrong>Evaluation tab.\u003c/strong> Safety targets are met; the value target is not.\u003c/li>\u003c/ol>\n\u003cp>\u003cstrong>Value at stake.\u003c/strong> Hours are modest: about 470 coordinator hours a year (0.28 FTE). The larger value is regulatory and human. Emergencies surface first, no report is silently mis-banded, and every decision can be explained to a tenant, an ombudsman or the regulator. That is a case for coordinators, not against them.\u003c/p>\n\u003ch3 id=\"6-go-no-go-recommendation\">6. Go / no-go recommendation\u003c/h3>\n\u003cp>\u003cstrong>Recommendation: REFINE.\u003c/strong> Fund the twelve-week build as gated, shadow-mode decision support. \u003cstrong>No-go\u003c/strong> on autonomous triage or auto-booking, now and at the end of the build.\u003c/p>\n\u003cp>\u003cstrong>Why not scale.\u003c/strong> Value is unproven: 38% of synthetic reports were ready to confirm, below the 40% target. On phrasing the models had not seen, the figure fell to almost nothing (1 of 57). Real tenant language will be more varied, and our accuracy figures are circular because we wrote the generator and the rules. The policy is a stand-in, and no DPIA or equality impact assessment exists yet.\u003c/p>\n\u003cp>\u003cstrong>Why not pause or retire.\u003c/strong> The safety design held on every test: 100% of emergencies reached a human, none was under-prioritised in the confirm queue, and decisions were consistent and replayable. Evaluation found and fixed seven real defects, which shows the harness works. The regulatory consistency case stands even if time savings stay small.\u003c/p>\n\u003cp>\u003cstrong>Gates (stop if any gate fails):\u003c/strong>\u003c/p>\n\u003cul>\u003cli>\u003cstrong>Gate 1, week 4.\u003c/strong> Encode the published policy. Run the full evaluation on the 500 real reports inside the tenancy, with disagreements adjudicated by a senior coordinator panel. Pass: emergency-to-human 100%, confirm-queue under-prioritisation ≤1%, confirm-queue share ≥30%.\u003c/li>\u003cli>\u003cstrong>Gate 2, week 8.\u003c/strong> DPIA and EIA approved. Shadow mode: coordinators triage as today while the tool's suggestions are logged and compared. Pass: Gate 1 thresholds hold on live traffic, and emergency-queue precision is ≥60%.\u003c/li>\u003cli>\u003cstrong>Gate 3, week 12.\u003c/strong> Assisted mode in one patch, with the blind re-triage sample. Go-live decision by the Director of Operations, the compliance lead and coordinator representatives.\u003c/li>\u003c/ul>\n\u003cp>\u003cstrong>Conditions.\u003c/strong> Coordinators co-design the queues. The sponsor states in writing that the project is not a headcount reduction. A named service owner takes on the runbook.\u003c/p>"},{"id":"runbook","label":"A · Runbook","html":"\u003ch2 id=\"appendix-a-runbook\">Appendix A: Runbook\u003c/h2>\n\u003cp>For the team that operates the triage service. MVP state: runs as a static page; production steps are marked \u003cstrong>(build)\u003c/strong>.\u003c/p>\n\u003ch3 id=\"service-summary\">Service summary\u003c/h3>\n\u003cdiv class=\"tablewrap\">\u003ctable>\u003cthead>\u003ctr>\u003cth>Item\u003c/th>\u003cth>Value\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody>\u003ctr>\u003ctd>Purpose\u003c/td>\u003ctd>Suggest trade, priority and queue for repair reports. Coordinators decide.\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Owner\u003c/td>\u003ctd>Service owner (to be named before Gate 2). Out of hours: repairs on-call manager.\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Components\u003c/td>\u003ctd>Redaction → policy rules → models → router → console → audit store. Booking API is read-only.\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Versions\u003c/td>\u003ctd>Engine, policy and model versions are printed in the console header and in every audit record.\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Failure mode\u003c/td>\u003ctd>Fail to human: if anything errors, the report goes to \u003cem>Coordinator review\u003c/em> with no suggestion.\u003c/td>\u003c/tr>\u003c/tbody>\u003c/table>\u003c/div>\n\u003ch3 id=\"daily-checks-coordinator-lead-5-minutes\">Daily checks (coordinator lead, 5 minutes)\u003c/h3>\n\u003col>\u003cli>The \u003cem>Emergency check now\u003c/em> queue is empty, or every item is less than 30 minutes old.\u003c/li>\u003cli>Callbacks in \u003cem>Needs clarifying\u003c/em> marked \"1 hour\" are within time.\u003c/li>\u003cli>Yesterday's overrides: scan reasons for anything that moved a band \u003cstrong>up to P1\u003c/strong>. Each one is a possible miss, so open an incident.\u003c/li>\u003c/ol>\n\u003ch3 id=\"weekly-checks-service-owner\">Weekly checks (service owner)\u003c/h3>\n\u003cul>\u003cli>Queue mix against the baseline (Gate 1 figures). Investigate if \u003cem>Ready to confirm\u003c/em> moves more than 10 points.\u003c/li>\u003cli>Override rate by reason code, and emergency-queue precision (target ≥60%).\u003c/li>\u003cli>Blind re-triage: a senior coordinator re-triages a random 10% of \u003cem>Ready to confirm\u003c/em> without seeing the suggestion. Any band disagreement is logged.\u003c/li>\u003c/ul>\n\u003ch3 id=\"kill-switch\">Kill switch\u003c/h3>\n\u003cp>Set \u003ccode>routing.mode = \"review_all\"\u003c/code> \u003cstrong>(build: feature flag)\u003c/strong>. Every report then goes to \u003cem>Coordinator review\u003c/em> and the service runs as a reading aid. Use it on any suspected missed emergency, a model or policy deploy problem, or a data incident. The coordinator lead or the service owner can flip it without approval.\u003c/p>\n\u003ch3 id=\"incident-suspected-missed-or-under-prioritised-emergency\">Incident: suspected missed or under-prioritised emergency\u003c/h3>\n\u003col>\u003cli>Make the tenant safe first: phone the tenant and dispatch through the emergency rota.\u003c/li>\u003cli>Flip the kill switch.\u003c/li>\u003cli>Replay the decision from the audit log (\u003cem>Audit → Replay\u003c/em>). This confirms which versions, clauses and reasons produced it.\u003c/li>\u003cli>Classify the cause: rule gap, model, threshold, redaction, or human override.\u003c/li>\u003cli>Add the report (redacted) to the red-team regression set, fix it, run \u003ccode>node eval/evaluate.js\u003c/code>, and redeploy only when every safety metric passes.\u003c/li>\u003cli>Record the incident for the regulator file within 5 working days.\u003c/li>\u003c/ol>\n\u003ch3 id=\"changing-rules-thresholds-or-the-model\">Changing rules, thresholds or the model\u003c/h3>\n\u003cp>All changes follow one path. Edit \u003ccode>src/policy.js\u003c/code> or the thresholds in \u003ccode>src/engine.js\u003c/code>, or retrain with \u003ccode>node eval/evaluate.js\u003c/code>. Then run the full evaluation. Then get two approvals: the repairs manager for policy meaning, and the service owner for the metrics. Bump the version and deploy. Old versions stay available so that historic decisions can be replayed.\u003c/p>\n\u003cp>Retrain monthly, or when the override rate rises above 15%, using adjudicated decisions only.\u003c/p>\n\u003ch3 id=\"complaint-or-regulator-request\">Complaint or regulator request\u003c/h3>\n\u003cp>Find the decision by report ID in the audit store. Replay it to show that the fingerprint matches. Export the record: redacted text, clauses, quoted evidence, reasons, versions, coordinator action and reason. That is the explanation of the classification.\u003c/p>\n\u003ch3 id=\"rebuild-the-prototype\">Rebuild the prototype\u003c/h3>\n\u003cpre class=\"code\">\u003ccode>node data/generate.js &amp;&amp; node eval/evaluate.js &amp;&amp; node build.js\u003c/code>\u003c/pre>"},{"id":"controls","label":"B · Controls and checklists","html":"\u003ch2 id=\"appendix-b-controls-responsible-ai-and-readiness\">Appendix B: Controls, Responsible AI and readiness\u003c/h2>\n\u003cp>Metric IDs (S1, C3 and so on) refer to \u003ccode>eval/RESULTS.md\u003c/code>, regenerated on every run.\u003c/p>\n\u003ch3 id=\"controls-register\">Controls register\u003c/h3>\n\u003cdiv class=\"tablewrap\">\u003ctable>\u003cthead>\u003ctr>\u003cth>#\u003c/th>\u003cth>Control\u003c/th>\u003cth>Type\u003c/th>\u003cth>Owner\u003c/th>\u003cth>Test or evidence\u003c/th>\u003cth>Status\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody>\u003ctr>\u003ctd>C-01\u003c/td>\u003ctd>Coordinator decides every report; no auto-accept, auto-book or auto-close\u003c/td>\u003ctd>Preventive\u003c/td>\u003ctd>Service owner\u003c/td>\u003ctd>Console has no automated action; engine has no write path\u003c/td>\u003ctd>Met\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-02\u003c/td>\u003ctd>Emergency items need an explicit hazard check before accept\u003c/td>\u003ctd>Preventive\u003c/td>\u003ctd>Coordinator lead\u003c/td>\u003ctd>Console disables Accept until the box is ticked (demo step 1)\u003c/td>\u003ctd>Met\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-03\u003c/td>\u003ctd>Ordered routing: once a safety screen fires, nothing moves a report out of a human queue\u003c/td>\u003ctd>Preventive\u003c/td>\u003ctd>Tech lead\u003c/td>\u003ctd>S1 100%, S2 100%, S4 0%\u003c/td>\u003ctd>Met\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-04\u003c/td>\u003ctd>Model second opinion escalates when P(emergency) ≥ 20%\u003c/td>\u003ctd>Detective\u003c/td>\u003ctd>Tech lead\u003c/td>\u003ctd>Red-team items caught by the model alone: 2 of 15\u003c/td>\u003ctd>Met\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-05\u003c/td>\u003ctd>Vague, hazard-adjacent and chaser reports get a 1-hour callback with scripted questions\u003c/td>\u003ctd>Preventive\u003c/td>\u003ctd>Coordinator lead\u003c/td>\u003ctd>S5 100%\u003c/td>\u003ctd>Met\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-06\u003c/td>\u003ctd>Personal data redacted before processing and logging\u003c/td>\u003ctd>Preventive\u003c/td>\u003ctd>Data protection officer\u003c/td>\u003ctd>C3: 1,400 name, address and contact variants unchanged\u003c/td>\u003ctd>Met (synthetic)\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-07\u003c/td>\u003ctd>Urgency language stripped; priority comes from the hazard described\u003c/td>\u003ctd>Preventive\u003c/td>\u003ctd>Repairs manager\u003c/td>\u003ctd>C4 100%\u003c/td>\u003ctd>Met\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-08\u003c/td>\u003ctd>Vulnerability mentions route to a human; no text-based uplift\u003c/td>\u003ctd>Preventive\u003c/td>\u003ctd>Repairs manager\u003c/td>\u003ctd>Clause E9 needs a coordinator; register lookup on backlog\u003c/td>\u003ctd>Partly met\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-09\u003c/td>\u003ctd>Every priority is grounded in a cited clause with verbatim evidence\u003c/td>\u003ctd>Preventive\u003c/td>\u003ctd>Repairs manager\u003c/td>\u003ctd>G1–G4 100%\u003c/td>\u003ctd>Met\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-10\u003c/td>\u003ctd>Deterministic, versioned decisions with fingerprint and replay\u003c/td>\u003ctd>Detective\u003c/td>\u003ctd>Tech lead\u003c/td>\u003ctd>C1, C2 100%\u003c/td>\u003ctd>Met\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-11\u003c/td>\u003ctd>Override needs a reason; reasons are monitored\u003c/td>\u003ctd>Detective\u003c/td>\u003ctd>Service owner\u003c/td>\u003ctd>Console requires a reason (demo step 4)\u003c/td>\u003ctd>Met (MVP)\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-12\u003c/td>\u003ctd>Change control: full evaluation and two approvals before any rule, threshold or model change\u003c/td>\u003ctd>Preventive\u003c/td>\u003ctd>Service owner\u003c/td>\u003ctd>Runbook; evaluation harness\u003c/td>\u003ctd>Designed\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-13\u003c/td>\u003ctd>Blind 10% re-triage of \u003cem>Ready to confirm\u003c/em>\u003c/td>\u003ctd>Detective\u003c/td>\u003ctd>Coordinator lead\u003c/td>\u003ctd>Runbook weekly check\u003c/td>\u003ctd>Designed\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C-14\u003c/td>\u003ctd>Kill switch routes everything to review\u003c/td>\u003ctd>Corrective\u003c/td>\u003ctd>Service owner\u003c/td>\u003ctd>Runbook\u003c/td>\u003ctd>Designed\u003c/td>\u003c/tr>\u003c/tbody>\u003c/table>\u003c/div>\n\u003ch3 id=\"responsible-ai-checklist\">Responsible AI checklist\u003c/h3>\n\u003cdiv class=\"tablewrap\">\u003ctable>\u003cthead>\u003ctr>\u003cth>Question\u003c/th>\u003cth>Answer\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody>\u003ctr>\u003ctd>Is a human accountable for each decision?\u003c/td>\u003ctd>Yes. The coordinator; the tool only suggests (C-01, C-02).\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Can any possible emergency avoid a human?\u003c/td>\u003ctd>Not in testing: 48/48 test and 15/15 red-team emergencies reached a human. This is unproven on real data; Gate 1 tests it.\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Can we explain any classification after the fact?\u003c/td>\u003ctd>Yes. Clause, evidence, reasons, versions and replay (C-09, C-10).\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Are tenants treated consistently?\u003c/td>\u003ctd>Identical hazards get identical outputs regardless of name, address, contact details or tone (C3, C4). An equality impact assessment is still needed, covering non-native English writers and phone transcription.\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Do protected characteristics influence output?\u003c/td>\u003ctd>Not directly: they are not inputs, and names are redacted. Vulnerability text only routes to a human. Proxy risk (dialect, spelling) is partly mitigated by spell-correction and fallback to review; it needs an EIA with real data.\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Data protection\u003c/td>\u003ctd>Synthetic data only. Production processing stays in the tenancy and needs a DPIA before shadow mode.\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Workforce\u003c/td>\u003ctd>Modelled saving is 0.28 FTE. Positioned as decision support; coordinators co-design.\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Known limits\u003c/td>\u003ctd>Circular synthetic accuracy; narrow phrasing; 44% of the emergency queue is over-escalated; vulnerability lexicon gaps.\u003c/td>\u003c/tr>\u003c/tbody>\u003c/table>\u003c/div>\n\u003ch3 id=\"production-readiness-checklist-9-of-22-met\">Production readiness checklist (9 of 22 met)\u003c/h3>\n\u003cdiv class=\"tablewrap\">\u003ctable>\u003cthead>\u003ctr>\u003cth>#\u003c/th>\u003cth>Item\u003c/th>\u003cth>Status\u003c/th>\u003cth>Evidence\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody>\u003ctr>\u003ctd>1\u003c/td>\u003ctd>Deterministic engine\u003c/td>\u003ctd>Met\u003c/td>\u003ctd>C1\u003c/td>\u003c/tr>\u003ctr>\u003ctd>2\u003c/td>\u003ctd>Explanation on every decision\u003c/td>\u003ctd>Met\u003c/td>\u003ctd>G1–G3\u003c/td>\u003c/tr>\u003ctr>\u003ctd>3\u003c/td>\u003ctd>Audit replay\u003c/td>\u003ctd>Met\u003c/td>\u003ctd>C2\u003c/td>\u003c/tr>\u003ctr>\u003ctd>4\u003c/td>\u003ctd>Redaction before processing\u003c/td>\u003ctd>Met\u003c/td>\u003ctd>C3\u003c/td>\u003c/tr>\u003ctr>\u003ctd>5\u003c/td>\u003ctd>No write access to client systems\u003c/td>\u003ctd>Met\u003c/td>\u003ctd>Booking adapter is read-only\u003c/td>\u003c/tr>\u003ctr>\u003ctd>6\u003c/td>\u003ctd>Repeatable evaluation harness\u003c/td>\u003ctd>Met\u003c/td>\u003ctd>\u003ccode>eval/evaluate.js\u003c/code>\u003c/td>\u003c/tr>\u003ctr>\u003ctd>7\u003c/td>\u003ctd>Red-team regression set\u003c/td>\u003ctd>Met\u003c/td>\u003ctd>15 cases; 7 defects fixed\u003c/td>\u003c/tr>\u003ctr>\u003ctd>8\u003c/td>\u003ctd>Versioning of engine, policy and model\u003c/td>\u003ctd>Met\u003c/td>\u003ctd>Header and audit record\u003c/td>\u003c/tr>\u003ctr>\u003ctd>9\u003c/td>\u003ctd>Runbook\u003c/td>\u003ctd>Met\u003c/td>\u003ctd>Appendix A\u003c/td>\u003c/tr>\u003ctr>\u003ctd>10\u003c/td>\u003ctd>Real policy encoded and signed off\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Gate 1\u003c/td>\u003c/tr>\u003ctr>\u003ctd>11\u003c/td>\u003ctd>Damp and mould timescales checked against Awaab's Law by legal\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Gate 1\u003c/td>\u003c/tr>\u003ctr>\u003ctd>12\u003c/td>\u003ctd>Real-data evaluation inside the tenancy\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Gate 1\u003c/td>\u003c/tr>\u003ctr>\u003ctd>13\u003c/td>\u003ctd>DPIA approved\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Gate 2\u003c/td>\u003c/tr>\u003ctr>\u003ctd>14\u003c/td>\u003ctd>Equality impact assessment\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Gate 2\u003c/td>\u003c/tr>\u003ctr>\u003ctd>15\u003c/td>\u003ctd>SSO and role-based access\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Build\u003c/td>\u003c/tr>\u003ctr>\u003ctd>16\u003c/td>\u003ctd>Durable, append-only audit store with retention policy\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Build\u003c/td>\u003c/tr>\u003ctr>\u003ctd>17\u003c/td>\u003ctd>Booking API adapter (read-only)\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Build\u003c/td>\u003c/tr>\u003ctr>\u003ctd>18\u003c/td>\u003ctd>Monitoring dashboards and alerts\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Build\u003c/td>\u003c/tr>\u003ctr>\u003ctd>19\u003c/td>\u003ctd>Kill switch implemented\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Build\u003c/td>\u003c/tr>\u003ctr>\u003ctd>20\u003c/td>\u003ctd>Shadow-mode results meet Gate 1 thresholds on live traffic\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Gate 2\u003c/td>\u003c/tr>\u003ctr>\u003ctd>21\u003c/td>\u003ctd>Coordinator training and co-designed queues\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Gate 3\u003c/td>\u003c/tr>\u003ctr>\u003ctd>22\u003c/td>\u003ctd>Named service owner and support model\u003c/td>\u003ctd>Open\u003c/td>\u003ctd>Gate 2\u003c/td>\u003c/tr>\u003c/tbody>\u003c/table>\u003c/div>"},{"id":"results","label":"C · Evaluation results","html":"\u003ch2 id=\"evaluation-results-synthetic-data\">Evaluation results (synthetic data)\u003c/h2>\n\u003cp class=\"callout\">All figures come from 500 synthetic reports (300 train / 200 test). They show the pipeline and its safety design work. They do not show real-world accuracy, which is measured at Gate 1 on the client's real sample inside its tenancy.\u003c/p>\n\u003cp>Versions: engine-0.4.0 · policy-synth-2026.10 · nb-c89dda58\u003c/p>\n\u003cp>Queues on the 200 test reports: EMERGENCY 75, CLARIFY 15, REVIEW 34, CONFIRM 76\u003c/p>\n\u003cdiv class=\"tablewrap\">\u003ctable>\u003cthead>\u003ctr>\u003cth>ID\u003c/th>\u003cth>Group\u003c/th>\u003cth>Metric\u003c/th>\u003cth>Result\u003c/th>\u003cth>Target\u003c/th>\u003cth>Status\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody>\u003ctr>\u003ctd>S1\u003c/td>\u003ctd>Safety\u003c/td>\u003ctd>Emergencies (policy P1) reaching a human queue\u003c/td>\u003ctd>100% (48/48)\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>S2\u003c/td>\u003ctd>Safety\u003c/td>\u003ctd>Emergencies flagged for immediate action (emergency queue or 1-hour callback)\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>≥ 95%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>S3\u003c/td>\u003ctd>Safety\u003c/td>\u003ctd>Red-team emergencies (hand-written, unseen) reaching a human\u003c/td>\u003ctd>100% (15/15)\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>S4\u003c/td>\u003ctd>Safety\u003c/td>\u003ctd>Under-prioritised in the ready-to-confirm queue\u003c/td>\u003ctd>0% (0/76)\u003c/td>\u003ctd>≤ 1%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>S5\u003c/td>\u003ctd>Safety\u003c/td>\u003ctd>Vague reports kept out of the ready-to-confirm queue\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Q1\u003c/td>\u003ctd>Quality\u003c/td>\u003ctd>Ready-to-confirm: trade correct\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>≥ 95%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Q2\u003c/td>\u003ctd>Quality\u003c/td>\u003ctd>Ready-to-confirm: priority correct\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>≥ 97%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Q3\u003c/td>\u003ctd>Quality\u003c/td>\u003ctd>All reports: trade correct (vs policy truth)\u003c/td>\u003ctd>81.5%\u003c/td>\u003ctd>report only\u003c/td>\u003ctd>info\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Q4\u003c/td>\u003ctd>Quality\u003c/td>\u003ctd>Policy-grounded priority correct\u003c/td>\u003ctd>97.3% of 149\u003c/td>\u003ctd>≥ 95%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>Q5\u003c/td>\u003ctd>Quality\u003c/td>\u003ctd>Emergency queue precision (truly P1)\u003c/td>\u003ctd>56%\u003c/td>\u003ctd>report only\u003c/td>\u003ctd>info\u003c/td>\u003c/tr>\u003ctr>\u003ctd>G1\u003c/td>\u003ctd>Groundedness\u003c/td>\u003ctd>Cited clauses exist in the policy\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>G2\u003c/td>\u003ctd>Groundedness\u003c/td>\u003ctd>Evidence quotes found verbatim in the (redacted) report\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>G3\u003c/td>\u003ctd>Groundedness\u003c/td>\u003ctd>Policy band equals the band of the highest cited clause\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>G4\u003c/td>\u003ctd>Groundedness\u003c/td>\u003ctd>Ready-to-confirm items with no policy clause\u003c/td>\u003ctd>0\u003c/td>\u003ctd>0\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C1\u003c/td>\u003ctd>Consistency\u003c/td>\u003ctd>Same input gives same fingerprint on re-run\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C2\u003c/td>\u003ctd>Consistency\u003c/td>\u003ctd>Audit replay reproduces the recorded decision\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C3\u003c/td>\u003ctd>Consistency\u003c/td>\u003ctd>Decision unchanged when name, address or contact details change\u003c/td>\u003ctd>100% (1400 variants)\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>C4\u003c/td>\u003ctd>Consistency\u003c/td>\u003ctd>Decision unchanged when tenant shouts \"URGENT!!!\"\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>R1\u003c/td>\u003ctd>Robustness\u003c/td>\u003ctd>Same queue and priority after a typo in the key word\u003c/td>\u003ctd>93.1% (144)\u003c/td>\u003ctd>report only\u003c/td>\u003ctd>info\u003c/td>\u003c/tr>\u003ctr>\u003ctd>R2\u003c/td>\u003ctd>Robustness\u003c/td>\u003ctd>Emergencies with a typo still reaching a human\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>100%\u003c/td>\u003ctd>PASS\u003c/td>\u003c/tr>\u003ctr>\u003ctd>V1\u003c/td>\u003ctd>Value\u003c/td>\u003ctd>Reports ready to confirm without a full read\u003c/td>\u003ctd>38%\u003c/td>\u003ctd>≥ 40%\u003c/td>\u003ctd>FAIL\u003c/td>\u003c/tr>\u003ctr>\u003ctd>V2\u003c/td>\u003ctd>Value\u003c/td>\u003ctd>Coordinator hours released per year (modelled)\u003c/td>\u003ctd>470 h (0.28 FTE)\u003c/td>\u003ctd>report only\u003c/td>\u003ctd>info\u003c/td>\u003c/tr>\u003c/tbody>\u003c/table>\u003c/div>\n\u003ch3 id=\"holdout-phrasing-templates-never-seen-in-training\">Holdout phrasing (templates never seen in training)\u003c/h3>\n\u003cpre class=\"code\">\u003ccode>{\n \"holdout\": {\n  \"n\": 57,\n  \"confirm\": 1,\n  \"confirm_correct\": 1\n },\n \"seen\": {\n  \"n\": 113,\n  \"confirm\": 75,\n  \"confirm_correct\": 75\n }\n}\u003c/code>\u003c/pre>\n\u003ch3 id=\"red-team-misses\">Red-team misses\u003c/h3>\n\u003cp>None.\u003c/p>\n\u003ch3 id=\"coordinator-labels-vs-policy-illustrative\">Coordinator labels vs policy (illustrative)\u003c/h3>\n\u003cp>{\"agree_pct\":97.5,\"p1_downgraded_by_coordinator\":1,\"note\":\"Coordinator noise is injected by the generator (7%); illustrative only\"}\u003c/p>"},{"id":"backlog","label":"D · Backlog","html":"\u003ch2 id=\"appendix-d-backlog\">Appendix D: Backlog\u003c/h2>\n\u003cp>Ordered by gate. Size: S under 3 days, M 1–2 weeks, L over 2 weeks.\u003c/p>\n\u003cdiv class=\"tablewrap\">\u003ctable>\u003cthead>\u003ctr>\u003cth>#\u003c/th>\u003cth>Item\u003c/th>\u003cth>Why\u003c/th>\u003cth>Gate\u003c/th>\u003cth>Size\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody>\u003ctr>\u003ctd>1\u003c/td>\u003ctd>Encode the published repairs policy; repairs manager signs off each clause\u003c/td>\u003ctd>The current policy is a synthetic stand-in\u003c/td>\u003ctd>1\u003c/td>\u003ctd>M\u003c/td>\u003c/tr>\u003ctr>\u003ctd>2\u003c/td>\u003ctd>Run the evaluation on the 500 real reports inside the tenancy, with panel adjudication\u003c/td>\u003ctd>Synthetic accuracy is circular\u003c/td>\u003ctd>1\u003c/td>\u003ctd>M\u003c/td>\u003c/tr>\u003ctr>\u003ctd>3\u003c/td>\u003ctd>Calibrate thresholds (trade confidence, model escalation) on real data\u003c/td>\u003ctd>Set on synthetic data; emergency precision is 56%\u003c/td>\u003ctd>1\u003c/td>\u003ctd>S\u003c/td>\u003c/tr>\u003ctr>\u003ctd>4\u003c/td>\u003ctd>Look up the open job for chasers (\"still not fixed\") and inherit its priority\u003c/td>\u003ctd>Chasers currently get a blanket 1-hour callback\u003c/td>\u003ctd>1\u003c/td>\u003ctd>M\u003c/td>\u003c/tr>\u003ctr>\u003ctd>5\u003c/td>\u003ctd>Look up the vulnerability register instead of text cues\u003c/td>\u003ctd>Lexicon missed \"my nan is 91\"; text-based cues are an equality risk\u003c/td>\u003ctd>1\u003c/td>\u003ctd>M\u003c/td>\u003c/tr>\u003ctr>\u003ctd>6\u003c/td>\u003ctd>Booking API adapter (read-only)\u003c/td>\u003ctd>The mock stands in for the real API\u003c/td>\u003ctd>2\u003c/td>\u003ctd>M\u003c/td>\u003c/tr>\u003ctr>\u003ctd>7\u003c/td>\u003ctd>Durable audit store, SSO, roles, kill switch\u003c/td>\u003ctd>Production readiness items 15, 16 and 19\u003c/td>\u003ctd>2\u003c/td>\u003ctd>L\u003c/td>\u003c/tr>\u003ctr>\u003ctd>8\u003c/td>\u003ctd>Shadow-mode logging and comparison report\u003c/td>\u003ctd>Gate 2 evidence\u003c/td>\u003ctd>2\u003c/td>\u003ctd>M\u003c/td>\u003c/tr>\u003ctr>\u003ctd>9\u003c/td>\u003ctd>Monitoring dashboard and alerts\u003c/td>\u003ctd>Runbook weekly checks\u003c/td>\u003ctd>2\u003c/td>\u003ctd>M\u003c/td>\u003c/tr>\u003ctr>\u003ctd>10\u003c/td>\u003ctd>Broaden phrasing: retrain on adjudicated real reports; consider a small in-tenancy language model as a third opinion, with the same grounding rules\u003c/td>\u003ctd>Unseen phrasing reached \u003cem>Ready to confirm\u003c/em> in only 1 of 57 cases\u003c/td>\u003ctd>3\u003c/td>\u003ctd>L\u003c/td>\u003c/tr>\u003ctr>\u003ctd>11\u003c/td>\u003ctd>Damp and mould: hazard assessment workflow and Awaab's Law timers\u003c/td>\u003ctd>Statutory\u003c/td>\u003ctd>3\u003c/td>\u003ctd>M\u003c/td>\u003c/tr>\u003ctr>\u003ctd>12\u003c/td>\u003ctd>Phone transcription quality check\u003c/td>\u003ctd>Phone reports are second-hand text\u003c/td>\u003ctd>3\u003c/td>\u003ctd>S\u003c/td>\u003c/tr>\u003c/tbody>\u003c/table>\u003c/div>\n\u003ch3 id=\"defects-found-by-evaluation-all-fixed-kept-as-regression-tests\">Defects found by evaluation (all fixed, kept as regression tests)\u003c/h3>\n\u003cdiv class=\"tablewrap\">\u003ctable>\u003cthead>\u003ctr>\u003cth>#\u003c/th>\u003cth>Found by\u003c/th>\u003cth>Defect\u003c/th>\u003cth>Fix\u003c/th>\u003c/tr>\u003c/thead>\u003ctbody>\u003ctr>\u003ctd>D1\u003c/td>\u003ctd>Red team\u003c/td>\u003ctd>\"Crack in the wall getting wider\" landed in \u003cem>Ready to confirm\u003c/em> as Routine\u003c/td>\u003ctd>Clause E8: widening cracks\u003c/td>\u003c/tr>\u003ctr>\u003ctd>D2\u003c/td>\u003ctd>Consistency (C4)\u003c/td>\u003ctd>Text in capitals bypassed name redaction\u003c/td>\u003ctd>Case-insensitive redaction for strong patterns\u003c/td>\u003c/tr>\u003ctr>\u003ctd>D3\u003c/td>\u003ctd>Consistency (C4)\u003c/td>\u003ctd>The fix for D2 erased \"the street\" as an address, removing E6 evidence\u003c/td>\u003ctd>Case-fold strong patterns only\u003c/td>\u003c/tr>\u003ctr>\u003ctd>D4\u003c/td>\u003ctd>Consistency (C3)\u003c/td>\u003ctd>\"[postcode]\" placeholder matched \"boiler … code\"\u003c/td>\u003ctd>Strip placeholders; word boundaries\u003c/td>\u003c/tr>\u003ctr>\u003ctd>D5\u003c/td>\u003ctd>Safety (S2)\u003c/td>\u003ctd>Chasers with hidden emergencies got no fast callback\u003c/td>\u003ctd>REPEAT_REPORT → 1-hour callback\u003c/td>\u003c/tr>\u003ctr>\u003ctd>D6\u003c/td>\u003ctd>Robustness (R2)\u003c/td>\u003ctd>Typo \"ottal loss of power\" became Urgent in \u003cem>Ready to confirm\u003c/em>\u003c/td>\u003ctd>Domain spell-correction feeding the rules\u003c/td>\u003c/tr>\u003ctr>\u003ctd>D7\u003c/td>\u003ctd>Red team\u003c/td>\u003ctd>Spell-correction changed \"lead\" to \"leak\" and lowered the model's emergency signal; \"extension lead\" was not treated as electrics\u003c/td>\u003ctd>Models read literal text; E4 covers extension leads\u003c/td>\u003c/tr>\u003c/tbody>\u003c/table>\u003c/div>"}],"url":"{{PROTOTYPE_URL}}"};
+</script>
+<script>
+(function () {
+  'use strict';
+  const D = window.HP_DATA;
+  const engine = HPEngine.createEngine(HPPolicy, D.model);
+  const LANES = {
+    EMERGENCY: { name: 'Emergency check now', short: 'Emergency check', blurb: 'Possible emergency. Check the hazard with the tenant now.' },
+    CLARIFY: { name: 'Needs clarifying', short: 'Clarify', blurb: 'Too vague to triage. Call the tenant with the questions below.' },
+    REVIEW: { name: 'Coordinator review', short: 'Review', blurb: 'The tool is unsure or policy needs a person. Read and decide.' },
+    CONFIRM: { name: 'Ready to confirm', short: 'Confirm', blurb: 'Clear, policy-grounded and confident. Check and confirm.' },
+  };
+  const ORDER = ['EMERGENCY', 'CLARIFY', 'REVIEW', 'CONFIRM'];
+  const $ = (s, r) => (r || document).querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmtTime = (iso) => new Date(iso).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  const fmtDate = (iso) => new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+
+  $('#versions').textContent = Object.values(engine.versions).join(' · ');
+
+  // ---------- State ----------
+  const items = D.queue.map((q) => ({ report: q, out: engine.triage(q), done: null }));
+  const audit = [];
+  let order = 'triage';
+  let current = items.find((x) => /gas/.test(x.report.text)) || items[0];
+  let tryCount = 0;
+
+  // ---------- Decision panel (shared by queue and try) ----------
+  function highlight(text, out) {
+    let html = esc(text);
+    const ev = out.clauses.flatMap((c) => c.evidence).filter((e) => e.length > 2).sort((a, b) => b.length - a.length);
+    for (const e of ev) {
+      const re = new RegExp('(' + esc(e).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/'/g, "(?:'|&#39;)") + ')', 'i');
+      html = html.replace(re, '<mark>$1</mark>');
+    }
+    return html;
+  }
+
+  function panel(container, item, opts) {
+    const o = item.out, r = item.report, d = o.decision, L = LANES[d.lane];
+    const slot = HPBooking.suggestSlot(o.trade.value, o.priority.value, r.received_at || o.input.received_at, o.sla_deadline);
+    const redacted = o.input.redacted_text !== (r.text || '').replace(/\s+/g, ' ').trim();
+    const grounded = d.priority_source === 'policy_clause';
+    const prioSrc = grounded ? 'Policy clause ' + o.clauses[0].id
+      : d.priority_source === 'assume_emergency_until_clarified' ? 'Treated as emergency until clarified'
+      : d.priority_source === 'assume_emergency_until_checked' ? 'Treated as emergency until checked' + (o.priority.policy_band ? ' (policy alone: ' + o.priority.policy_band + ', clause ' + o.clauses[0].id + ')' : '')
+      : 'Not grounded in policy: model guess only';
+    const slotHtml = slot.kind === 'slot' ? esc(fmtDate(slot.slot.start)) + '<div class="sub">' + esc(slot.text) + '</div>' : '<span class="sub">' + esc(slot.text) + '</span>';
+    const pct = Math.round(o.trade.confidence * 100);
+
+    container.innerHTML = `
+      <section>
+        <div class="p-head">
+          <span class="mono muted">${esc(r.id || 'New report')} · ${r.channel === 'phone' ? 'Phone' : 'Portal'} · ${esc(fmtTime(r.received_at || o.input.received_at))}</span>
+          <span class="pill lane-${d.lane}">${L.name}</span>
+        </div>
+        <p class="report">${highlight(o.input.redacted_text, o)}</p>
+        ${redacted ? '<div class="note">Personal details were removed before triage. Only the redacted text is processed or logged.</div>' : ''}
+        ${o.input.corrections.length ? '<div class="note">Spelling repaired for the policy rules: ' + o.input.corrections.map((c) => '<span class="mono">' + esc(c.from) + ' → ' + esc(c.to) + '</span>').join(', ') + '</div>' : ''}
+      </section>
+      <section class="banner lane-${d.lane}">
+        <h3>${L.blurb}</h3>
+        <ul>${o.reasons.length ? o.reasons.map((x) => '<li>' + esc(x.detail) + ' <span class="mono muted">' + x.code + '</span></li>').join('') : '<li>Every check passed: policy clause matched, trade confidence ' + pct + '%, models agree.</li>'}</ul>
+      </section>
+      <section class="grid4">
+        <div><div class="k">Trade</div><div class="v">${esc(o.trade.value)}</div><div class="conf" title="Confidence ${pct}%"><i style="width:${pct}%"></i></div><div class="sub">${pct}% confident${o.trade.alternatives.length ? ' · next: ' + esc(o.trade.alternatives[0].label) : ''}</div></div>
+        <div><div class="k">Priority</div><div class="v"><span class="band ${o.priority.value}">${o.priority.value}</span> ${esc(o.priority.band)}</div><div class="sub">${esc(prioSrc)}</div></div>
+        <div><div class="k">Policy target</div><div class="v" style="font-size:15px">${esc(fmtDate(o.sla_deadline))}</div><div class="sub">${esc(o.priority.target)}</div></div>
+        <div><div class="k">Earliest slot (read-only)</div><div class="v" style="font-size:15px">${slotHtml}</div></div>
+      </section>
+      ${o.clauses.length ? `<section><div class="k">Policy clauses cited</div>${o.clauses.slice(0, 3).map((c) => `
+        <div class="clause"><h4><span class="band ${c.band}">${c.id}</span> ${esc(c.title)}</h4><p>${esc(c.text)}</p>
+        <p class="sub">Evidence: ${c.evidence.map((e) => '“' + esc(e) + '”').join(', ')}</p></div>`).join('')}</section>` : ''}
+      ${o.clarifying_questions.length ? `<section><div class="k">Callback script</div><ol class="q">${o.clarifying_questions.map((q) => '<li>' + esc(q) + '</li>').join('')}</ol></section>` : ''}
+      <section class="actions" id="act"></section>
+      <section><details><summary>Explanation record (what the audit log stores)</summary><pre class="json">${esc(JSON.stringify(o, null, 2))}</pre></details>
+        <div class="note" style="margin-top:6px">Priority model: ${o.priority.model_opinion.label} at ${Math.round(o.priority.model_opinion.p * 100)}%, emergency ${Math.round(o.priority.model_opinion.p_emergency * 100)}% · fingerprint <span class="mono">${o.fingerprint}</span></div></section>`;
+    actions($('#act', container), item, opts);
+  }
+
+  function actions(el, item, opts) {
+    const o = item.out;
+    if (item.done) {
+      el.innerHTML = `<span class="ok-msg">${item.done.action === 'accepted' ? 'Accepted' : 'Changed'}: ${esc(item.done.final_trade)}, ${item.done.final_priority}</span><span class="note">Logged at ${esc(fmtTime(item.done.ts))}. Book it in the booking system.</span>`;
+      return;
+    }
+    const em = o.decision.lane === 'EMERGENCY' || (o.decision.lane === 'CLARIFY' && o.decision.priority === 'P1');
+    el.innerHTML = `
+      ${em ? '<label class="check"><input type="checkbox" id="hz"> <span>I have spoken to the tenant and checked the hazard. Accept stays disabled until this is ticked.</span></label>' : ''}
+      <button class="btn primary" id="acc" ${em ? 'disabled' : ''}>Accept suggestion</button>
+      <button class="btn" id="chg">Change…</button>
+      <span class="note">You decide. Nothing is booked automatically.</span>
+      <div class="form" id="chgform" hidden>
+        <label>Trade<select id="f-trade">${HPPolicy.TRADES.map((t) => '<option' + (t === o.trade.value ? ' selected' : '') + '>' + esc(t) + '</option>').join('')}</select></label>
+        <label>Priority<select id="f-prio">${Object.entries(HPPolicy.BANDS).map(([k, b]) => '<option value="' + k + '"' + (k === o.priority.value ? ' selected' : '') + '>' + k + ' ' + b.name + '</option>').join('')}</select></label>
+        <label class="full">Reason (required, used for monitoring)<textarea id="f-reason" rows="2" placeholder="For example: spoke to tenant, water is near the light fitting"></textarea></label>
+        <div class="full actions"><button class="btn primary" id="f-save">Save change</button><span id="f-msg" class="err-msg"></span></div>
+      </div>`;
+    const hz = $('#hz', el), acc = $('#acc', el);
+    if (hz) hz.addEventListener('change', () => { acc.disabled = !hz.checked; });
+    acc.addEventListener('click', () => decide(item, 'accepted', o.trade.value, o.priority.value, hz ? 'Hazard checked with tenant' : '', opts));
+    $('#chg', el).addEventListener('click', () => { $('#chgform', el).hidden = false; $('#f-reason', el).focus(); });
+    $('#f-save', el).addEventListener('click', () => {
+      const reason = $('#f-reason', el).value.trim();
+      if (reason.length < 5) { $('#f-msg', el).textContent = 'Add a reason of at least a few words. Reasons feed the weekly override review.'; return; }
+      decide(item, 'changed', $('#f-trade', el).value, $('#f-prio', el).value, reason, opts);
+    });
+  }
+
+  function decide(item, action, trade, prio, reason, opts) {
+    item.done = { action, final_trade: trade, final_priority: prio, reason, ts: new Date().toISOString() };
+    audit.unshift({ ts: item.done.ts, report_id: item.report.id || item.out.id || 'TRY', action, final_trade: trade, final_priority: prio, reason, coordinator: 'Demo coordinator', record: item.out, replay: null });
+    $('#audit-count').textContent = '(' + audit.length + ')';
+    opts.after();
+  }
+
+  // ---------- Queue ----------
+  function renderSummary() {
+    const n = (l) => items.filter((x) => x.out.decision.lane === l).length;
+    const fullReads = items.length - n('CONFIRM');
+    $('#summary').innerHTML = ORDER.map((l) => `<div class="stat lane-${l}"><b>${n(l)}</b><span>${LANES[l].name}</span></div>`).join('') +
+      `<div class="reads"><b>${fullReads} of ${items.length}</b><span>need a full read (today: ${items.length} of ${items.length})</span></div>`;
+  }
+
+  function renderList() {
+    const byTime = items.slice().sort((a, b) => a.report.received_at.localeCompare(b.report.received_at));
+    const row = (x, i) => `<button class="item lane-${x.out.decision.lane}${x.done ? ' done' : ''}" data-id="${x.report.id}" aria-current="${x === current}">
+        <span class="stripe"></span><span class="body"><span class="row1"><span>${order === 'arrival' ? '#' + (i + 1) + ' · ' : ''}${esc(fmtTime(x.report.received_at))}</span>
+        <span>${x.done ? '<span class="done-tag">Done</span>' : '<span class="band ' + x.out.priority.value + '">' + x.out.priority.value + '</span>'}</span></span>
+        <span class="txt">${esc(x.out.input.redacted_text)}</span></span></button>`;
+    let html;
+    if (order === 'arrival') {
+      html = '<div class="group-h">All reports, oldest first</div>' + byTime.map(row).join('');
+    } else {
+      html = ORDER.map((l) => {
+        const g = byTime.filter((x) => x.out.decision.lane === l);
+        return g.length ? `<div class="group-h lane-${l}">${LANES[l].name} · ${g.length}</div>` + g.map(row).join('') : '';
+      }).join('');
+    }
+    $('#list').innerHTML = html;
+    $('#list').querySelectorAll('.item').forEach((b) => b.addEventListener('click', () => {
+      current = items.find((x) => x.report.id === b.dataset.id);
+      renderList(); renderDetail();
+      if (window.matchMedia('(max-width: 900px)').matches) $('#detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+  }
+
+  function renderDetail() { panel($('#detail'), current, { after: () => { renderList(); renderDetail(); renderAudit(); } }); }
+
+  function setOrder(o) {
+    order = o;
+    $('#ord-arrival').setAttribute('aria-pressed', o === 'arrival');
+    $('#ord-triage').setAttribute('aria-pressed', o === 'triage');
+    renderList();
+  }
+  $('#ord-arrival').addEventListener('click', () => setOrder('arrival'));
+  $('#ord-triage').addEventListener('click', () => setOrder('triage'));
+
+  // ---------- Try ----------
+  const EXAMPLES = [
+    'my nan is 91 and her heating has been off since friday',
+    'leak',
+    'the tap is dripping onto the plug socket below the sink',
+    'My name is Agnieszka Nowak, flat 4 Tower Court. Kitchen tap is dripping constantly',
+    'KITCHEN TAP IS DRIPPING CONSTANTLY URGENT!!! ASAP',
+    'ottal loss of power to the house, trip switch won\'t reset',
+    'black mould in the baby\'s bedroom',
+    'still not fixed',
+    'fence panel blown down in the back garden',
+  ];
+  $('#try-examples').innerHTML = EXAMPLES.map((e) => '<button class="chip">' + esc(e) + '</button>').join('');
+  $('#try-examples').querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => { $('#try-text').value = c.textContent; runTry(); }));
+  let tryItem = null;
+  function runTry() {
+    const text = $('#try-text').value.trim();
+    if (!text) { $('#try-detail').innerHTML = '<section><p class="err-msg">Type a report first, or pick an example.</p></section>'; return; }
+    tryCount++;
+    const report = { id: 'TRY-' + String(tryCount).padStart(3, '0'), text, channel: $('#try-channel').value, received_at: new Date().toISOString() };
+    tryItem = { report, out: engine.triage(report), done: null };
+    panel($('#try-detail'), tryItem, { after: () => { panel($('#try-detail'), tryItem, { after: () => {} }); renderAudit(); } });
+  }
+  $('#try-run').addEventListener('click', runTry);
+
+  // ---------- Evaluation ----------
+  function renderEval() {
+    const R = D.results, M = R.metrics, lanes = R.lanes, total = Object.values(lanes).reduce((a, b) => a + b, 0);
+    const groups = ['Safety', 'Quality', 'Groundedness', 'Consistency', 'Robustness', 'Value'];
+    const pass = M.filter((m) => m.pass === true).length, fail = M.filter((m) => m.pass === false).length;
+    $('#v-eval').innerHTML = `
+      <div class="caveat"><b>Synthetic evaluation.</b> 500 generated reports (300 train, 200 test) plus 15 hand-written red-team emergencies. We wrote both the generator and the rules, so these results show that the safety design and the pipeline work. They do not show real-world accuracy. Gate 1 repeats every test on the real sample inside the client tenancy.</div>
+      <div class="eval-grid">
+        <div class="card"><div class="k">Targets met</div><b>${pass} of ${pass + fail}</b><span class="sub">${fail} failed: ${M.filter((m) => m.pass === false).map((m) => m.id + ' ' + esc(m.name.toLowerCase())).join('; ')}</span></div>
+        <div class="card"><div class="k">Emergencies reaching a human</div><b>${M.find((m) => m.id === 'S1').value}</b><span class="sub">Red team: ${M.find((m) => m.id === 'S3').value}</span></div>
+        <div class="card"><div class="k">Ready to confirm, unseen phrasing</div><b>${R.holdout_vs_seen.holdout.confirm} of ${R.holdout_vs_seen.holdout.n}</b><span class="sub">versus ${R.holdout_vs_seen.seen.confirm} of ${R.holdout_vs_seen.seen.n} on familiar phrasing. Safe, but value drops.</span></div>
+      </div>
+      <h2 class="sec">Where the 200 test reports went</h2>
+      <div class="lanebar" role="img" aria-label="${ORDER.map((l) => LANES[l].name + ' ' + lanes[l]).join(', ')}">${ORDER.map((l) => `<div class="lane-${l}" style="width:${(100 * lanes[l]) / total}%">${lanes[l]}</div>`).join('')}</div>
+      <div class="legend">${ORDER.map((l) => `<span class="pill lane-${l}">${LANES[l].name} ${lanes[l]} (${Math.round((100 * lanes[l]) / total)}%)</span>`).join('')}</div>
+      <h2 class="sec">Metrics against the evaluation plan</h2>
+      <div class="tablewrap"><table><thead><tr><th>ID</th><th>Metric</th><th>Result</th><th>Target</th><th>Status</th></tr></thead><tbody>
+      ${groups.map((g) => `<tr><th colspan="5">${g}</th></tr>` + M.filter((m) => m.group === g).map((m) => `<tr><td class="mono">${m.id}</td><td>${esc(m.name)}${m.note ? '<div class="sub">' + esc(m.note) + '</div>' : ''}</td><td class="num">${esc(m.value)}</td><td class="num">${esc(m.target)}</td><td><span class="st ${m.pass === null ? 'info' : m.pass ? 'PASS' : 'FAIL'}">${m.pass === null ? 'INFO' : m.pass ? 'PASS' : 'FAIL'}</span></td></tr>`).join('')).join('')}
+      </tbody></table></div>
+      <h2 class="sec">Red-team emergencies</h2>
+      <p class="note">Written to dodge keyword rules. The first run found a miss ("crack getting wider" landed in Ready to confirm). It is fixed and kept as a regression test, so this set now flatters the engine.</p>
+      <div class="tablewrap"><table><thead><tr><th>Report</th><th>Queue</th><th>Why</th></tr></thead><tbody>
+      ${R.red_team.map((x) => `<tr><td>${esc(x.text)}</td><td><span class="pill lane-${x.lane}">${LANES[x.lane].short}</span></td><td class="mono">${x.reasons.join(', ')}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="note">Coordinator labels agreed with policy on ${R.coordinator_vs_policy.agree_pct}% of test reports (illustrative: the generator injects 7% inconsistency). Value model: ${R.value_assumptions.reportsPerYear.toLocaleString('en-GB')} reports a year, ${R.value_assumptions.minutesFullRead} minutes per full read, ${R.value_assumptions.minutesConfirm} per confirm. Generated ${esc(fmtDate(R.generated_at))}.</p>`;
+  }
+
+  // ---------- Audit ----------
+  function renderAudit() {
+    if (!audit.length) {
+      $('#audit').innerHTML = '<div class="card"><p><b>No decisions yet.</b> Accept or change a suggestion in the triage queue, and the record appears here with a Replay button.</p></div>';
+      return;
+    }
+    $('#audit').innerHTML = `<div class="tablewrap"><table><thead><tr><th>Time</th><th>Report</th><th>Decision</th><th>Suggested</th><th>Reason</th><th>Fingerprint</th><th></th></tr></thead><tbody>
+      ${audit.map((a, i) => `<tr><td class="num">${esc(new Date(a.ts).toLocaleTimeString('en-GB'))}</td><td class="mono">${esc(a.report_id)}</td>
+        <td>${a.action === 'accepted' ? 'Accepted' : '<b>Changed</b>'}: ${esc(a.final_trade)}, <span class="band ${a.final_priority}">${a.final_priority}</span></td>
+        <td>${esc(a.record.trade.value)}, ${a.record.priority.value} · <span class="pill lane-${a.record.decision.lane}">${LANES[a.record.decision.lane].short}</span></td>
+        <td>${esc(a.reason || '—')}</td><td class="mono">${a.record.fingerprint}</td>
+        <td><div class="actions"><button class="btn" data-replay="${i}">Replay</button><button class="btn" data-copy="${i}">Copy record</button></div>
+        <div data-out="${i}">${a.replay ? (a.replay.match ? '<span class="ok-msg">Replay matches ' + a.replay.fingerprint + '</span>' : '<span class="err-msg">Mismatch: ' + a.replay.fingerprint + '</span>') : ''}</div></td></tr>`).join('')}
+      </tbody></table></div><pre class="json" id="copybox" hidden></pre>`;
+    $('#audit').querySelectorAll('[data-replay]').forEach((b) => b.addEventListener('click', () => {
+      const a = audit[+b.dataset.replay]; a.replay = engine.replay(a.record); renderAudit();
+    }));
+    $('#audit').querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => {
+      const a = audit[+b.dataset.copy]; const text = JSON.stringify(Object.assign({}, a, { replay: undefined }), null, 2);
+      const out = $('[data-out="' + b.dataset.copy + '"]');
+      const fallback = () => { const box = $('#copybox'); box.hidden = false; box.textContent = text; const r = document.createRange(); r.selectNodeContents(box); const s = getSelection(); s.removeAllRanges(); s.addRange(r); out.innerHTML = '<span class="note">Record shown below and selected. Press Ctrl+C to copy.</span>'; };
+      try { navigator.clipboard.writeText(text).then(() => { out.innerHTML = '<span class="ok-msg">Copied</span>'; }, fallback); } catch (e) { fallback(); }
+    }));
+  }
+
+  // ---------- Handover ----------
+  const ARCH = `<div class="box">Portal and phone reports</div><div class="ar">→</div><div class="box h">Redaction</div><div class="ar">→</div><div class="box">Policy rules + spell-correct<br><span class="sub">Trade and priority models</span></div>
+    <div class="box h">Ordered safety router</div><div class="ar">→</div><div class="box h">Coordinator console<br><span class="sub">decides every report</span></div><div class="ar">→</div><div class="box">Audit store<br><span class="sub">redacted text, versions, fingerprint</span></div>
+    <div class="box ro">Booking API (read-only)</div><div class="ar">→</div><div class="box">Slot suggestion in console</div><div class="ar">→</div><div class="box">Coordinator books in booking system</div>`;
+  let docId = 'handover';
+  function renderDocs() {
+    $('#docnav').innerHTML = D.docs.map((d) => `<button data-doc="${d.id}" aria-current="${d.id === docId}">${esc(d.label)}</button>`).join('');
+    $('#docnav').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { docId = b.dataset.doc; renderDocs(); }));
+    $('#doc').innerHTML = D.docs.find((d) => d.id === docId).html;
+    $('#doc').querySelectorAll('[data-arch]').forEach((el) => { el.innerHTML = ARCH; });
+  }
+
+  // ---------- Views ----------
+  const VIEWS = ['queue', 'try', 'eval', 'audit', 'handover'];
+  function show(v) {
+    if (!VIEWS.includes(v)) v = 'queue';
+    VIEWS.forEach((x) => { $('#v-' + x).hidden = x !== v; $('#tab-' + x).setAttribute('aria-selected', x === v); });
+    try { history.replaceState(null, '', '#' + v); } catch (e) {}
+  }
+  document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => show(t.dataset.view)));
+
+  renderSummary(); renderList(); renderDetail(); runTry(); renderEval(); renderAudit(); renderDocs();
+  show((location.hash || '').slice(1));
+})();
+</script>
